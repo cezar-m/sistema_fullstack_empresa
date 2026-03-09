@@ -10,4 +10,8 @@ const pool = new Pool({
   port: 5432,
 });
 
+pool.connect()
+  .then(() => console.log("✅ Banco conectado com sucesso!"))
+  .catch(err => console.error("❌ Erro ao conectar no banco:", err.message));
+
 export default pool;
