@@ -1,0 +1,22 @@
+.sidebar {
+	width: 250px;
+	min-height: 100vh;
+	background-color: #2563eb;
+	display: flex;
+	flex-direction: column;
+}
+
+.sidebar-link {
+	display: block;
+	padding: 10px 12px;
+	color: white;
+	font-weight: 600;
+	text-decoration: none;
+	border-radius: 6px;
+	transition: all 0.3s ease;
+}
+
+.sidebar-link:hover {
+	background-color: rgba(255, 255, 255, 0.15);
+	color: white;
+}
