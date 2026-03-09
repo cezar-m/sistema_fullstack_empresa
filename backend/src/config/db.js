@@ -1,6 +1,4 @@
 import { Pool } from "pg";
-import dotenv from "dotenv";
-dotenv.config();
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -10,8 +8,16 @@ const pool = new Pool({
   port: 5432,
 });
 
-pool.connect()
-  .then(() => console.log("✅ Banco conectado com sucesso!"))
-  .catch(err => console.error("❌ Erro ao conectar no banco:", err.message));
+async function testConnection() {
+  try {
+    const client = await pool.connect(); // tenta pegar uma conexão
+    console.log("✅ Banco conectado com sucesso!");
+    client.release(); // libera a conexão
+  } catch (err) {
+    console.error("❌ Erro ao conectar no banco:", err.message);
+  }
+}
+
+testConnection();
 
 export default pool;
