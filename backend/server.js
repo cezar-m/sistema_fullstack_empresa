@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 
-import pool from "./src/config/db.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import usersRoutes from "./src/routes/users.routes.js";
 import productsRoutes from "./src/routes/products.routes.js";
@@ -22,17 +21,6 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/", (req, res) => {
   res.send("API Sistema Empresa funcionando 🚀");
 });
-
-// Teste de conexão com o banco
-pool.connect()
-  .then(client => {
-    console.log("✅ Banco conectado com sucesso!");
-    client.release(); // libera a conexão
-  })
-  .catch(err => {
-    console.error("❌ Erro ao conectar no banco:", err.message);
-});
-
 
 // ================= Servir imagens =================
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
