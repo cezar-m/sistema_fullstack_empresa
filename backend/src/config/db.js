@@ -1,14 +1,13 @@
-import pg from "pg";
+import { Pool } from "pg";
 import dotenv from "dotenv";
-
 dotenv.config();
-const { Pool } = pg;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // usar DATABASE_URL do Supabase
-  ssl: {
-    rejectUnauthorized: false, // necessário para Supabase
-  },
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: 5432,
 });
 
 export default pool;
