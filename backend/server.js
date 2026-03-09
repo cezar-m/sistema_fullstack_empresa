@@ -17,6 +17,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// rota raiz
+app.get("/", (req, res) => {
+  res.send("API Sistema Empresa funcionando 🚀");
+});
+
+
 // ================= Servir imagens =================
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
