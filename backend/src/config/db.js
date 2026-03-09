@@ -8,7 +8,7 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT, // use 5432 do .env
+  port: Number(process.env.DB_PORT), // converter para número
   ssl: {
     rejectUnauthorized: false, // ESSENCIAL para Supabase
   },
@@ -16,11 +16,11 @@ const pool = new Pool({
 
 async function testConnection() {
   try {
-    const client = await pool.connect(); // tenta pegar uma conexão
+    const client = await pool.connect();
     console.log("✅ Banco conectado com sucesso!");
-    client.release(); // libera a conexão
+    client.release();
   } catch (err) {
-    console.error("❌ Erro ao conectar no banco:", err.message);
+    console.error("❌ Erro ao conectar no banco:", err);
   }
 }
 
