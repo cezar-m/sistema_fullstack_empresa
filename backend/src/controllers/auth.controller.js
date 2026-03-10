@@ -17,7 +17,7 @@ export const register = async (req, res) => {
 			
 			await db.query(
 				`INSERT INTO usuarios(nome, email, senha, acesso)
-				 VALUES(?,?,?,?)`,
+				 VALUES($1,$2,$3,$4)`,
 				 [nome, email, hash, acesso || "usuario"]
 			);
 			
@@ -37,10 +37,12 @@ export const login = async (req, res) => {
 		
 		const { email, senha } = req.body;
 		
-		const [user] = await db.query(
-			"SELECT * FROM usuarios WHERE email=?",
+		const result = await db.query(
+			"SELECT * FROM usuarios WHERE email=$1",
 			[email]
 		);
+
+		const user = result.rows;
 		
 		
 		if(!user.length)
@@ -82,16 +84,18 @@ export const esqueciSenha = async (req, res) => {
 		
 		const token = uuid();
 		
-		const [user] = await db.query(
-			"SELECT id FROM usuarios WHERE email=?",
+		const result = await db.query(
+			"SELECT id FROM usuarios WHERE email=$1",
 			[email]
 		);
+
+		const user = result.rows;
 		
 		if(!user.length)
 			return res.status(400).json({ erro: "Email não encontrado" });
 		
 		await db.query(
-			"UPDATE usuarios SET reset_token=? WHERE email=?",
+			"UPDATE usuarios SET reset_token=$1 WHERE email=$2",
 			[token, email]
 		);
 		
@@ -117,10 +121,12 @@ export const redefinirSenha = async (req, res) => {
 		if(!token || !novaSenha)
 			return res.status(400).json({ erro: "Campos obrigatórios" });
 		
-			const [user] = await db.query(
-				"SELECT id FROM usuarios WHERE reset_token=?",
+			const result = await db.query(
+				"SELECT id FROM usuarios WHERE reset_token=$1",
 				[token]
 			);
+
+			const user = result.rows;
 			
 			if(!user.length)
 				return res.status(404).json({ erro: "Token inválido" });
@@ -129,8 +135,8 @@ export const redefinirSenha = async (req, res) => {
 			
 			await db.query(
 				`UPDATE usuarios
-				 SET senha=?, reset_token=NULL
-				 WHERE id=?`,
+				 SET senha=$1, reset_token=NULL
+				 WHERE id=$2`,
 				 [hash, user[0].id]
 			);
 			
