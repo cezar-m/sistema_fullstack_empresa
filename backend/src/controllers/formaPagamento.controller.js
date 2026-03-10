@@ -14,7 +14,7 @@ export const criarFormaPagamento = async (req, res) => {
 		}
 		
 		await db.query(
-			"INSERT INTO formas_pagamento (nome, ativo) VALUES (?, ?)",
+			"INSERT INTO formas_pagamento (nome, ativo) VALUES ($1, $2)",
 			[nome, ativo ?? 1]
 		);
 		
@@ -39,7 +39,7 @@ export const atualizarFormaPagamento = async (req, res) => {
 		}
 		
 		await db.query(
-			"UPDATE formas_pagamento SET nome = ?, ativo = ? WHERE id = ?",
+			"UPDATE formas_pagamento SET nome = $1, ativo = $2 WHERE id = $3",
 			[nome, ativo ?? 1, id]
 		);
 		
@@ -58,7 +58,7 @@ export const excluirFormaPagamento = async (req, res) => {
 		const { id } = req.params;
 		
 		await db.query(
-			"DELETE FROM formas_pagamento WHERE id = ?",
+			"DELETE FROM formas_pagamento WHERE id = $1",
 			[id]
 		);
 		
@@ -75,8 +75,8 @@ export const excluirFormaPagamento = async (req, res) => {
 ========================= */
 
 export const listarFormas = async (req, res) => {
-	const [rows] = await db.query(
+	const result = await db.query(
 		"SELECT * FROM formas_pagamento"
 	);
-	res.json(rows);
+	res.json(result.rows);
 };
