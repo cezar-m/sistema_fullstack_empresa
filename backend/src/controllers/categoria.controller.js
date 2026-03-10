@@ -12,7 +12,7 @@ export const criar = async (req, res) => {
 			return res.status(400).json({ erro: "Nome obrigatório" });
 		
 		await db.query(
-			"INSERT INTO categorias (nome) VALUES (?)",
+			"INSERT INTO categorias (nome) VALUES ($1)",
 			[nome]
 		);
 		
@@ -30,11 +30,11 @@ export const criar = async (req, res) => {
 
 export const listar = async (req, res) => {
 	try {
-		const [rows] = await db.query(
+		const result = await db.query(
 			"SELECT * FROM categorias ORDER BY nome ASC"
 		);
 		
-		res.json(rows);
+		res.json(result.rows);
 	
 	} catch (err) {
 		console.error(err);
@@ -52,7 +52,7 @@ export const atualizar = async (req, res) => {
 		const { nome } = req.body;
 		
 		await db.query(
-			"UPDATE categorias SET nome=? WHERE id=?",
+			"UPDATE categorias SET nome=$1 WHERE id=$2",
 			[nome, id]
 		);
 		
@@ -73,7 +73,7 @@ export const deletar = async (req, res) => {
 		const { id } = req.params;
 		
 		await db.query(
-			"DELETE FROM categorias WHERE id=?",
+			"DELETE FROM categorias WHERE id=$1",
 			[id]
 		);
 		
