@@ -12,10 +12,12 @@ export const criarPagamento = async (req, res) => {
 		}
 		
 		// Busca produto pelo nome
-		const [produto] = await db.query(
-			"SELECT id, nome, preco FROM produtos WHERE nome = ?",
+		const produtoResult = await db.query(
+			"SELECT id, nome, preco FROM produtos WHERE nome = $1",
 			[nome_produto]
 		);
+
+		const produto = produtoResult.rows;
 		
 		if(!produto.length) {
 			return res.status(404).json({ erro: "Produto não encontrado" });
@@ -25,27 +27,29 @@ export const criarPagamento = async (req, res) => {
 		const valor = produto[0].preco;
 		
 		// Buscar venda relacionada
-		const [venda] = await db.query(
+		const vendaResult = await db.query(
 			`SELECT v.id
 			 FROM vendas v
 			 JOIN itens_venda iv ON iv .id_venda = v.id
-			 WHERE iv.id_produto = ? AND v.id_usuario = ? 
+			 WHERE iv.id_produto = $1 AND v.id_usuario = $2 
 			 ORDER BY id_venda DESC
 			 LIMIT 1`,
 			 [id_produto, req.user.id]
 		);
+
+		const venda = vendaResult.rows;
 		
 		let id_venda;
 		
 		if(!venda.length) {
-			const [novaVenda] = await db.query(
-				`INSERT INTO vendas (id_usuario, data_venda) VALUES (?, NOW())`,
+			const novaVenda = await db.query(
+				`INSERT INTO vendas (id_usuario, data_venda) VALUES ($1, NOW()) RETURNING id`,
 				[req.user.id]
 			);
-			id_venda = novaVenda.insertId;
+			id_venda = novaVenda.rows[0].id;
 			
 			await db.query(
-				`INSERT INTO itens_venda(id_venda, id_produto, quantidade) VALUES(?, ?, ?)`,
+				`INSERT INTO itens_venda(id_venda, id_produto, quantidade) VALUES($1, $2, $3)`,
 				[id_venda, id_produto, 1]
 			);
 		} else {
@@ -53,10 +57,12 @@ export const criarPagamento = async (req, res) => {
 		}
 		
 		// Buscar forma de pagamento
-		const [forma] = await db.query(
-			"SELECT id FROM formas_pagamento WHERE nome = ? AND ativo = 1",
+		const formaResult = await db.query(
+			"SELECT id FROM formas_pagamento WHERE nome = $1 AND ativo = 1",
 			[forma_pagamento]
 		);
+
+		const forma = formaResult.rows;
 		
 		if(!forma.length) {
 			return res.status(404).json({ erro: "Forma de pagamento inválida" });
@@ -65,22 +71,22 @@ export const criarPagamento = async (req, res) => {
 		const id_forma_pagamento = forma[0].id;
 		
 		// Inserir pagamento com status enviando do front ou "pago" por padrão
-		const [result] = await db.query(
+		const result = await db.query(
 			`INSERT INTO pagamentos
 			   (id_venda, id_forma_pagamento, valor, status, data_pagamento)
-			   VALUES(?, ?, ?, ?, NOW())`,
+			   VALUES($1, $2, $3, $4, NOW()) RETURNING id`,
 			   [id_venda, id_forma_pagamento, valor, status_pagamento || "pago"]
 		);
-		
-		const id_pagamento = result.insertId;
-		
+
+		const id_pagamento = result.rows[0].id;
+				
 		// Inserir parcelas
 		if(parcelas && Array.isArray(parcelas) && parcelas.length > 0) {
 			for(const p of parcelas) {
 				await db.query(
 					`INSERT INTO parcelas
 					  (id_pagamento, numero_parcela, valor, data_vencimento, status)
-					  VALUES (?, ?, ?, ?, ?)`,
+					  VALUES ($1, $2, $3, $4, $5)`,
 					  [id_pagamento, p.numero, p.valor, p.data_vencimento, "pendente"]
 				);
 			}
@@ -98,7 +104,7 @@ export const criarPagamento = async (req, res) => {
 // =========================
 export const listarPagamentosPorId = async (req, res) => {
 	try {
-		const [rows] = await db.query(`
+		const result = await db.query(`
 			SELECT
 				p.id,
 				pr.nome AS nome_produto,
@@ -111,12 +117,12 @@ export const listarPagamentosPorId = async (req, res) => {
 			JOIN itens_venda iv ON iv.id_venda = v.id
 			JOIN produtos pr ON pr.id = iv.id_produto
 			JOIN formas_pagamento f ON f.id = p.id_forma_pagamento
-			WHERE v.id_usuario = ?
+			WHERE v.id_usuario = $1
 			GROUP BY p.id
 			ORDER BY p.id DESC
 		`,[req.user.id]);
 		
-		res.json(rows);
+		res.json(result.rows);
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ erro: "Erro ao listar pagamentos" });
@@ -135,8 +141,8 @@ export const marcarComoPago = async (req, res) => {
 		await db.query(`
 			UPDATE pagamentos p 
 			JOIN vendas v ON v.id = p.id_venda
-			SET p.status = ?
-			WHERE p.id = ? AND v.id_usuario = ?`
+			SET p.status = $1
+			WHERE p.id = $2 AND v.id_usuario = $3`
 			, [req.body.status || "pago", id, req.user.id]);
 		
 		res.json({ msg: "Pagamento atualizado para pago!!!" });
@@ -157,7 +163,7 @@ export const atualizarParcela = async (req, res) => {
 		const { status } = req.body;
 
 		await db.query(
-			`UPDATE parcelas SET status = ? WHERE id = ?`,
+			`UPDATE parcelas SET status = $1 WHERE id = $2`,
 			[status, id]
 		);
 
@@ -180,7 +186,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
 	try {
 		const { id } = req.params;
 
-		const [rows] = await db.query(`
+		const result = await db.query(`
 			SELECT 
 				pa.id,
 				pa.numero_parcela,
@@ -190,12 +196,12 @@ export const listarParcelasPorPagamento = async (req, res) => {
 			FROM parcelas pa
 			JOIN pagamentos p ON p.id = pa.id_pagamento
 			JOIN vendas v ON v.id = p.id_venda
-			WHERE pa.id_pagamento = ?
-			AND v.id_usuario = ?
+			WHERE pa.id_pagamento = $1
+			AND v.id_usuario = $2
 			ORDER BY pa.numero_parcela
 		`, [id, req.user.id]);
 
-		res.json(rows);
+		res.json(result.rows);
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ erro: "Erro ao buscar parcelas" });
