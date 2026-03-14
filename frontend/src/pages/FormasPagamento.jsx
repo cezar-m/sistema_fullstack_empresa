@@ -142,7 +142,7 @@ export default function FormasPagamento() {
 						</tr>
 					</thead>
 					<tbody>
-					   {formasPagamento.length === 0 && (
+					   {formasPagina.length === 0 && (
 						  <tr>
 							<td colSpan={3} className="text-center">
 								Nenhuma forma de pagamento encontrada
