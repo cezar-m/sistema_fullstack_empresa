@@ -1,4 +1,4 @@
-mport axios from "axios";
+import axios from "axios";
 
 // URL do backend (Vercel / Render / localhost)
 const api = axios.create({
