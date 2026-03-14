@@ -16,7 +16,7 @@ export default function FormasPagamento() {
 	const carregarFormasPagamentos = async () => {
 		try {
 			const res = await api.get("/formas-pagamento");
-			setFormasPagamento(res.data);
+			setFormasPagamento(Array.isArray(res.data) ? res.data : res.data.formas || []);
 		} catch(err) {
 			console.error(err);
 			alert(err.response?.data?.erro || "Erro ao carregar forma de pagamento");
@@ -59,7 +59,7 @@ export default function FormasPagamento() {
 			carregarFormasPagamentos();
 		} catch(err) {
 			console.error(err)
-			alert(err.response?.data?.erro || "Erro ao salvar forma de pagamento");
+			alert(err?.response?.data?.erro || "Erro ao salvar forma de pagamento");
 		}
 	};
 	
@@ -72,13 +72,19 @@ export default function FormasPagamento() {
 	
 	// Excluir forma pagamento
 	const excluir = async (id) => {
-		if(!window.confirm("Deseja excluir esta forma de pagamento?")) return;
+		if (!window.confirm("Deseja excluir esta forma de pagamento?")) return;
+
 		try {
 			await api.delete(`/formas-pagamento/${id}`);
+
+			if (formasPagamento.length - 1 <= (paginaAtual - 1) * formasPorPagina && paginaAtual > 1) {
+				setPaginaAtual(paginaAtual - 1);
+			}
+
 			carregarFormasPagamentos();
-		} catch(err) {
+		} catch (err) {
 			console.error(err);
-			alert(err.response?.data?.erro || "Erro ao excluir forma de pagamento");
+			alert(err?.response?.data?.erro || "Erro ao excluir forma de pagamento");
 		}
 	};
 	
@@ -143,7 +149,7 @@ export default function FormasPagamento() {
 							</td>
 						  </tr>
 						)}
-						{formasPagamento.map((forma) => (
+						{formasPagina.map((forma) => (
 							<tr key={forma.id}>
 								<td>{forma.nome}</td>
 								<td>
