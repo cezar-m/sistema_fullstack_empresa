@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 const api = axios.create({
