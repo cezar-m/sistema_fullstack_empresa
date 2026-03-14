@@ -20,7 +20,7 @@ export default function Categorias() {
 			setCategorias(res.data);
 		} catch(err) {
 			console.error(err);
-			alert(err.response?.data?.erro || "Erro ao carregar categorias");
+			alert(err?.response?.data?.erro || err.message || "Erro ao carregar categorias");
 		}
 	};
 	
@@ -53,7 +53,7 @@ export default function Categorias() {
 			carregarCategorias();
 		} catch(err) {
 			console.error(err)
-			alert(err.response?.data?.erro || "Erro ao salvar categoria");
+			alert(err?.response?.data?.erro || err.message || "Erro ao salvar categoria");
 		}
 	};
 	
@@ -71,7 +71,7 @@ export default function Categorias() {
 			carregarCategorias();
 		} catch(err) {
 			console.error(err);
-			alert(err.response?.data?.erro || "Erro ao excluir categoria");
+			alert(err?.response?.data?.erro || err.message || "Erro ao excluir categoria");
 		}
 	};
 	
