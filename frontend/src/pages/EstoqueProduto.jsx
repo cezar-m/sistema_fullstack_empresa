@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import DashboardLayout from "../layouts/DashboardLayout";
-
+import api from "../api/api";
 export default function Estoque() {
 	const [idProduto, setIdProduto] = useState(null); // ID do produto selecionado
 	const [nomeProduto, setNomeProduto] = useState("");
@@ -28,9 +27,7 @@ export default function Estoque() {
 	 /* ========================= LISTAR ESTOQUE ========================= */
 	const listarEstoque = async() => {
 		try {
-			const res = await axios.get("http://localhost:5000/api/estoque", {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await api.get("/estoque")
 			setEstoque(res.data);
 		} catch(err) {
 			console.error(err);
@@ -49,16 +46,15 @@ export default function Estoque() {
 			return;
 		}
 		try {
-			const res = await axios.post(
-				"http://localhost:5000/api/estoque",
+			const res = await api.post("/estoque",
 				{ nome_produto: nomeProduto, quantidade },
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
 			setMensagem(res.data.msg);
 			limparCampos();
 			listarEstoque();
-		} catch (erro) {
-			setMensagem(erro.response?.data?.erro || "Erro ao cadastrar");
+		} catch (err) {
+			setMensagem(err?.response?.data?.erro || "Erro ao cadastrar");
 		}
 	};
 	
@@ -69,8 +65,7 @@ export default function Estoque() {
 			return;
 		}
 		try {
-			const res = await axios.put(
-				"http://localhost:5000/api/estoque",
+			const res = await api.put("/estoque", 
 				{ id_produto: idProduto, nome_produto: nomeProduto, quantidade },
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
@@ -78,14 +73,14 @@ export default function Estoque() {
 			limparCampos();
 			listarEstoque();
 		} catch (err) {
-			setMensagem(erro.response?.data?.erro || "Erro ao atualizar");
+			setMensagem(err?.response?.data?.erro || "Erro ao atualizar");
 		}
 	};
 	
 	/* ========================= DELETAR ========================= */
 	const deletarEstoque = async (id) => {
 		try {
-			const res = await axios.delete("http://localhost:5000/api/estoque", {
+			const res = await api.delete("/estoque", {
 				headers: { Authorization: `Bearer ${token}` },
 				data: { id_produto: id },
 			});
@@ -93,7 +88,7 @@ export default function Estoque() {
 			limparCampos();
 			listarEstoque();
 		} catch (err) {
-			setMensagem(err.response?.data?.erro || "Erro ao deletar");
+			setMensagem(err?.response?.data?.erro || "Erro ao deletar");
 		}
 	};
 	
