@@ -69,7 +69,7 @@ export default function Produtos() {
 	const carregarProdutos = async () => {
 		try {
 			const res = await api.get("/products/meus"); // endpoint backend /meus
-			const produtosComPreco = res.data.map((p) => ({
+			const produtosComPreco = (Array.isArray(res.data) ? res.data : []).map((p) => ({
 				...p,
 				preco: p.preco != null ? Number(p.preco) : 0,
 			}));
@@ -84,7 +84,7 @@ export default function Produtos() {
 	const carregarCategorias = async () => {
 		try {
 			const res = await api.get("/categorias");
-			setCategorias(res.data);	
+			setCategorias(Array.isArray(res.data) ? res.data : []);
 		} catch(err) {
 			console.error(err);
 			alert(err.response?.data?.erro || "Erro ao carregar categorias");
@@ -102,10 +102,10 @@ export default function Produtos() {
 	const limpar = () => {
 		setNome("");
 		setPreco("");
-		setCategoria(""),
-		setQuantidade(""),
-		setImagem(null),
-		setPreview(null),
+		setCategoria("");
+		setQuantidade("");
+		setImagem(null);
+		setPreview(null);
 		setEditadoId(null);
 	};
 	
@@ -191,11 +191,6 @@ export default function Produtos() {
 	let produtosFiltrados = produtos.filter((p) =>
 		p.nome.toLowerCase().includes(busca.toLowerCase())
 	);
-	if(filtroPreco === "maior" && produtosFiltrados.length > 0) {
-	const maxPreco = Math.max(...produtosFiltrados.map((p) => p.preco));
-	produtosFiltrados = produtosFiltrados.filter((p) => p.preco === maxPreco);
-}
-	
 	
 	if(filtroPreco === "maior" && produtosFiltrados.length > 0) {
 		const maxPreco = Math.max(...produtosFiltrados.map((p) => p.preco));
