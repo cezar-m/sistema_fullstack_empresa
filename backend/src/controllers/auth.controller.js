@@ -33,46 +33,52 @@ export const register = async (req, res) => {
    LOGIN
 ========================= */
 export const login = async (req, res) => {
-	try {
-		
-		const { email, senha } = req.body;
-		
-		const result = await db.query(
-			"SELECT * FROM usuarios WHERE email=$1",
-			[email]
-		);
+  try {
 
-		const user = result.rows;
-		
-		
-		if(!user.length)
-			return res.status(404).json({ erro: "Usuário não encontrado" });
-		
-		const ok = await bcrypt.compare(senha, user[0].senha);
-		
-		if(!ok)
-			return res.status(401).json({ erro: "Senha inválida" });
-		
-		const token = jwt.sign(
-			{ id: user[0].id, acesso: user[0].acesso, nome: user[0].nome },
-			process.env.JWT_SECRET,
-			{ expiresIn: "1d" }
-		);
-		
-		res.json({
-				token,
-				usuario: {
-						id: user[0].id,
-						nome: user[0].nome,
-						acesso: user[0].acesso
-				}
-		});
-	
-	} catch(err) {
-		console.error(err);
-		res.status(500).json({ erro: "Erro no login" });
-	}
+    const { email, senha } = req.body;
+
+    if(!email || !senha)
+      return res.status(400).json({ erro: "Email e senha obrigatórios" });
+
+    const result = await db.query(
+      "SELECT * FROM usuarios WHERE email=$1",
+      [email]
+    );
+
+    if(!result.rows.length)
+      return res.status(404).json({ erro: "Usuário não encontrado" });
+
+    const user = result.rows[0];
+
+    const ok = await bcrypt.compare(senha, user.senha);
+
+    if(!ok)
+      return res.status(401).json({ erro: "Senha inválida" });
+
+    if(!process.env.JWT_SECRET)
+      throw new Error("JWT_SECRET não definido");
+
+    const token = jwt.sign(
+      { id: user.id, acesso: user.acesso, nome: user.nome },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      token,
+      usuario: {
+        id: user.id,
+        nome: user.nome,
+        acesso: user.acesso
+      }
+    });
+
+  } catch(err) {
+    console.error("Erro login:", err);
+    res.status(500).json({ erro: "Erro no login" });
+  }
 };
+
 
 /* =========================
    ESQUECI SENHA
