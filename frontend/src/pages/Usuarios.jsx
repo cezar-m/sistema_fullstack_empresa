@@ -33,7 +33,7 @@ export default function Usuarios() {
 	// DELETAR USUÁRIO
 	// =========================
 	const deletarUsuario = async(id) => {
-		if(!window.confirm("Tem certeza que deseja excluir sete usuário?"))
+		if(!window.confirm("Tem certeza que deseja excluir este usuário?"))
 			return;
 		try {
 			await api.delete(`/users/${id}`);
