@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 const PaginaVendas = () => {
@@ -34,11 +34,7 @@ const PaginaVendas = () => {
 	
 	const criarVenda = async () => {
 		try {
-			await axios.post(
-				"http://localhost:5000/api/vendas",
-				{ itens },
-				{ headers: { Authorization: `Bearer ${token}` } }
-			);
+			await api("/vendas",{ itens });
 			
 			setItens([]);
 			await listarVendas();
@@ -51,10 +47,7 @@ const PaginaVendas = () => {
 	
 	const listarVendas = async () => {
 		try {
-			const res = await axios.get(
-				"http://localhost:5000/api/vendas",
-				{ headers: { Authorization: `Bearer ${token}` } }
-			);
+			const res = await api.get("/vendas");
 			
 			
 			if(Array.isArray(res.data)) {
@@ -115,7 +108,7 @@ const PaginaVendas = () => {
 									</label>
 									<input 
 										type="number"
-										className="form-control W-25"
+										className="form-control w-25"
 										min="1"
 										value={quantidade}
 										onChange={(e) => setQuantidade(Number(e.target.value))}
