@@ -1,8 +1,8 @@
 import axios from "axios";
 
-// URL do backend (Vercel / Render / localhost)
+// URL do backend (Render / localhost)
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL + "/api",
+  baseURL: `${import.meta.env.VITE_API_URL}/api`,
 });
 
 // Interceptor para adicionar token automaticamente
