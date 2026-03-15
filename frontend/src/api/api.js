@@ -1,28 +1,17 @@
 import axios from "axios";
 
-// URL do backend (Render / localhost)
 const api = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL}/api`,
 });
 
-// Interceptor para adicionar token automaticamente
+// Interceptor de token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    /*
-      IMPORTANTE:
-      Não definir Content-Type manualmente para upload.
-      O Axios define automaticamente quando é FormData.
-    */
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     if (!(config.data instanceof FormData)) {
       config.headers["Content-Type"] = "application/json";
     }
-
     return config;
   },
   (error) => Promise.reject(error)
