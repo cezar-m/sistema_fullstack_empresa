@@ -6,7 +6,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 export default function FormasPagamento() {
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [nome, setNome] = useState("");
-  const [ativo, setAtivo] = useState(1);
+  const [ativo, setAtivo] = useState(1); // 1 = Ativo, 0 = Inativo
   const [editadoId, setEditadoId] = useState(null);
 
   // Paginação
@@ -123,7 +123,7 @@ export default function FormasPagamento() {
         <form onSubmit={handleSubmit} className="card p-3 mb-4">
           <div className="d-flex align-items-center mb-2 gap-2">
             <label className="fw-semibold mb-0" style={{ width: "220px" }}>
-              Nome da Forma Pagamento:
+              Nome da Forma de Pagamento:
             </label>
             <input
               className="form-control w-75"
