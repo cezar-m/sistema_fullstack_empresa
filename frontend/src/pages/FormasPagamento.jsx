@@ -47,7 +47,8 @@ export default function FormasPagamento() {
     if (!nome.trim()) return alert("O nome da forma de pagamento é obrigatório");
 
     try {
-      const payload = { nome: nome.trim(), ativo: Number(ativo) };
+      // Converte ativo para número 0 ou 1
+      const payload = { nome: nome.trim(), ativo: ativo ? 1 : 0 };
 
       if (editadoId) {
         await api.put(`/formas-pagamento/${editadoId}`, payload);
@@ -69,7 +70,7 @@ export default function FormasPagamento() {
   // =========================
   const editar = (forma) => {
     setNome(forma.nome);
-    setAtivo(Number(forma.ativo)); // converte sempre para número 0 ou 1
+    setAtivo(forma.ativo === 1); // converte 0/1 para boolean local
     setEditadoId(forma.id);
   };
 
@@ -125,8 +126,8 @@ export default function FormasPagamento() {
             <label className="fw-semibold mb-0" style={{ width: "220px" }}>Status:</label>
             <select
               className="form-control w-25"
-              value={ativo}
-              onChange={(e) => setAtivo(Number(e.target.value))} // sempre número
+              value={ativo ? 1 : 0} // converte boolean para número
+              onChange={(e) => setAtivo(Number(e.target.value) === 1)} // converte número para boolean local
             >
               <option value={1}>Ativo</option>
               <option value={0}>Inativo</option>
