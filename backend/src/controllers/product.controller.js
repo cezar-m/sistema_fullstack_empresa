@@ -109,7 +109,7 @@ export const atualizar = async (req, res) => {
 			preco: Number(preco),
 			categoria,
 			quantidade: quantidade ?? null,
-			imagem: imagem || null
+			imagem: imagem || req.produto?.imagem || null
 		});
 
 	}catch(err){
