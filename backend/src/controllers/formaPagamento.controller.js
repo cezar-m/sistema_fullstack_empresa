@@ -1,20 +1,20 @@
+// controllers/formaPagamentoController.js
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR FORMA PAGAMENTO
+   CRIAR FORMA DE PAGAMENTO
 ========================= */
 export const criarFormaPagamento = async (req, res) => {
   try {
     const { nome, ativo } = req.body;
 
-    if (!nome || !nome.trim()) {
+    if (!nome?.trim()) {
       return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
-    // Insere no banco, sem passar ID (Postgres gera automaticamente)
     const result = await db.query(
       "INSERT INTO formas_pagamento (nome, ativo) VALUES ($1, $2) RETURNING *",
-      [nome.trim(), ativo ?? 1] // Se ativo não for passado, default = 1
+      [nome.trim(), ativo ?? 1]
     );
 
     res.json({ msg: "Forma de pagamento criada", forma: result.rows[0] });
@@ -29,9 +29,7 @@ export const criarFormaPagamento = async (req, res) => {
 ========================= */
 export const listarFormas = async (req, res) => {
   try {
-    const result = await db.query(
-      "SELECT * FROM formas_pagamento ORDER BY id ASC"
-    );
+    const result = await db.query("SELECT * FROM formas_pagamento ORDER BY id ASC");
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -47,7 +45,7 @@ export const atualizarFormaPagamento = async (req, res) => {
     const { id } = req.params;
     const { nome, ativo } = req.body;
 
-    if (!nome || !nome.trim()) {
+    if (!nome?.trim()) {
       return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
