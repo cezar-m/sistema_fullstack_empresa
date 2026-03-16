@@ -1,4 +1,3 @@
-// pages/FormasPagamento.jsx
 import { useState, useEffect } from "react";
 import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
@@ -6,16 +5,13 @@ import DashboardLayout from "../layouts/DashboardLayout";
 export default function FormasPagamento() {
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [nome, setNome] = useState("");
-  const [ativo, setAtivo] = useState(1); // 1 = Ativo, 0 = Inativo
+  const [ativo, setAtivo] = useState(true); // boolean
   const [editadoId, setEditadoId] = useState(null);
 
   // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
   const formasPorPagina = 16;
 
-  // =========================
-  // CARREGAR FORMAS
-  // =========================
   const carregarFormas = async () => {
     try {
       const res = await api.get("/formas-pagamento");
@@ -30,24 +26,17 @@ export default function FormasPagamento() {
     carregarFormas();
   }, []);
 
-  // =========================
-  // LIMPAR FORMULÁRIO
-  // =========================
   const limpar = () => {
     setNome("");
-    setAtivo(1);
+    setAtivo(true);
     setEditadoId(null);
   };
 
-  // =========================
-  // CRIAR / ATUALIZAR
-  // =========================
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!nome.trim()) return alert("O nome da forma de pagamento é obrigatório");
 
     try {
-      // Converte ativo para número 0 ou 1
       const payload = { nome: nome.trim(), ativo: ativo ? 1 : 0 };
 
       if (editadoId) {
@@ -65,28 +54,20 @@ export default function FormasPagamento() {
     }
   };
 
-  // =========================
-  // EDITAR
-  // =========================
   const editar = (forma) => {
     setNome(forma.nome);
-    setAtivo(forma.ativo === 1); // converte 0/1 para boolean local
+    setAtivo(forma.ativo === 1);
     setEditadoId(forma.id);
   };
 
-  // =========================
-  // EXCLUIR
-  // =========================
   const excluir = async (id) => {
     if (!window.confirm("Deseja excluir esta forma de pagamento?")) return;
 
     try {
       await api.delete(`/formas-pagamento/${id}`);
-
       const total = formasPagamento.length - 1;
       const ultimaPagina = Math.ceil(total / formasPorPagina);
       if (paginaAtual > ultimaPagina && paginaAtual > 1) setPaginaAtual(paginaAtual - 1);
-
       carregarFormas();
     } catch (err) {
       console.error("Erro ao excluir forma:", err);
@@ -94,17 +75,11 @@ export default function FormasPagamento() {
     }
   };
 
-  // =========================
-  // PAGINAÇÃO
-  // =========================
   const indexUltimo = paginaAtual * formasPorPagina;
   const indexPrimeiro = indexUltimo - formasPorPagina;
   const formasPagina = formasPagamento.slice(indexPrimeiro, indexUltimo);
   const totalPaginas = Math.ceil(formasPagamento.length / formasPorPagina);
 
-  // =========================
-  // RENDER
-  // =========================
   return (
     <DashboardLayout>
       <div className="mb-2">
@@ -126,8 +101,8 @@ export default function FormasPagamento() {
             <label className="fw-semibold mb-0" style={{ width: "220px" }}>Status:</label>
             <select
               className="form-control w-25"
-              value={ativo ? 1 : 0} // converte boolean para número
-              onChange={(e) => setAtivo(Number(e.target.value) === 1)} // converte número para boolean local
+              value={ativo ? 1 : 0}
+              onChange={(e) => setAtivo(Number(e.target.value) === 1)}
             >
               <option value={1}>Ativo</option>
               <option value={0}>Inativo</option>
@@ -170,7 +145,6 @@ export default function FormasPagamento() {
           </tbody>
         </table>
 
-        {/* PAGINAÇÃO */}
         {totalPaginas > 1 && (
           <nav>
             <ul className="pagination">
