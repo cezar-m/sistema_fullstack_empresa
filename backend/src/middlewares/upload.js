@@ -2,42 +2,23 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-// caminho absoluto da pasta uploads
-const uploadDir = path.resolve("uploads");
+const uploadDir = "uploads";
 
-// cria a pasta uploads caso não exista
-if (!fs.existsSync(uploadDir)) {
-	fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Cria a pasta uploads se não existir
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// configuração de armazenamento
 const storage = multer.diskStorage({
-	destination: (req, file, cb) => {
-		cb(null, uploadDir);
-	},
-
-	filename: (req, file, cb) => {
-		const uniqueSuffix =
-			Date.now() + "-" + Math.round(Math.random() * 1e9);
-		const ext = path.extname(file.originalname);
-		const fileName = `${file.fieldname}-${uniqueSuffix}${ext}`;
-		cb(null, fileName);
-	}
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + "-" + uniqueSuffix + ext);
+  },
 });
-// filtro para aceitar apenas imagens
+
 const fileFilter = (req, file, cb) => {
-
-	if (file.mimetype.startsWith("image/")) {
-		cb(null, true);
-	} else {
-		cb(new Error("Apenas imagens são permitidas"), false);
-	}
+  if (file.mimetype.startsWith("image/")) cb(null, true);
+  else cb(new Error("Apenas imagens são permitidas"), false);
 };
-// exporta middleware
-const upload = multer({
-	storage,
-	fileFilter,
-	limits
-});
 
-export default upload;
+export default multer({ storage, fileFilter });
