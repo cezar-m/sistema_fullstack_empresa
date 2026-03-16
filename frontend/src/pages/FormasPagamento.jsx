@@ -1,3 +1,4 @@
+// pages/FormasPagamento.jsx
 import { useState, useEffect } from "react";
 import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
@@ -5,12 +6,16 @@ import DashboardLayout from "../layouts/DashboardLayout";
 export default function FormasPagamento() {
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [nome, setNome] = useState("");
-  const [ativo, setAtivo] = useState(1);
+  const [ativo, setAtivo] = useState(1); // 1 = Ativo, 0 = Inativo
   const [editadoId, setEditadoId] = useState(null);
 
+  // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
   const formasPorPagina = 16;
 
+  // =========================
+  // CARREGAR FORMAS
+  // =========================
   const carregarFormas = async () => {
     try {
       const res = await api.get("/formas-pagamento");
@@ -25,20 +30,30 @@ export default function FormasPagamento() {
     carregarFormas();
   }, []);
 
+  // =========================
+  // LIMPAR FORMULÁRIO
+  // =========================
   const limpar = () => {
     setNome("");
     setAtivo(1);
     setEditadoId(null);
   };
 
+  // =========================
+  // CRIAR / ATUALIZAR
+  // =========================
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!nome.trim()) return alert("O nome da forma de pagamento é obrigatório");
 
     try {
       const payload = { nome: nome.trim(), ativo: Number(ativo) };
-      if (editadoId) await api.put(`/formas-pagamento/${editadoId}`, payload);
-      else await api.post("/formas-pagamento", payload);
+
+      if (editadoId) {
+        await api.put(`/formas-pagamento/${editadoId}`, payload);
+      } else {
+        await api.post("/formas-pagamento", payload);
+      }
 
       limpar();
       setPaginaAtual(1);
@@ -49,19 +64,28 @@ export default function FormasPagamento() {
     }
   };
 
+  // =========================
+  // EDITAR
+  // =========================
   const editar = (forma) => {
     setNome(forma.nome);
-    setAtivo(Number(forma.ativo));
+    setAtivo(Number(forma.ativo)); // converte sempre para número 0 ou 1
     setEditadoId(forma.id);
   };
 
+  // =========================
+  // EXCLUIR
+  // =========================
   const excluir = async (id) => {
     if (!window.confirm("Deseja excluir esta forma de pagamento?")) return;
+
     try {
       await api.delete(`/formas-pagamento/${id}`);
+
       const total = formasPagamento.length - 1;
       const ultimaPagina = Math.ceil(total / formasPorPagina);
       if (paginaAtual > ultimaPagina && paginaAtual > 1) setPaginaAtual(paginaAtual - 1);
+
       carregarFormas();
     } catch (err) {
       console.error("Erro ao excluir forma:", err);
@@ -69,46 +93,54 @@ export default function FormasPagamento() {
     }
   };
 
+  // =========================
+  // PAGINAÇÃO
+  // =========================
   const indexUltimo = paginaAtual * formasPorPagina;
   const indexPrimeiro = indexUltimo - formasPorPagina;
   const formasPagina = formasPagamento.slice(indexPrimeiro, indexUltimo);
   const totalPaginas = Math.ceil(formasPagamento.length / formasPorPagina);
 
+  // =========================
+  // RENDER
+  // =========================
   return (
     <DashboardLayout>
       <div className="mb-2">
         <h2>Formas de Pagamento</h2>
 
+        {/* FORMULÁRIO */}
         <form onSubmit={handleSubmit} className="card p-3 mb-4">
           <div className="d-flex align-items-center mb-2 gap-2">
-            <label style={{ width: "220px" }}>Nome:</label>
+            <label className="fw-semibold mb-0" style={{ width: "220px" }}>Nome:</label>
             <input
               className="form-control w-75"
+              placeholder="Nome da forma de pagamento"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome da forma de pagamento"
             />
           </div>
 
           <div className="d-flex align-items-center mb-2 gap-2">
-            <label style={{ width: "220px" }}>Status:</label>
+            <label className="fw-semibold mb-0" style={{ width: "220px" }}>Status:</label>
             <select
               className="form-control w-25"
               value={ativo}
-              onChange={(e) => setAtivo(Number(e.target.value))}
+              onChange={(e) => setAtivo(Number(e.target.value))} // sempre número
             >
               <option value={1}>Ativo</option>
               <option value={0}>Inativo</option>
             </select>
           </div>
 
-          <div>
+          <div className="text-start">
             <button type="submit" className="btn btn-success">
               {editadoId ? "Atualizar" : "Cadastrar"}
             </button>
           </div>
         </form>
 
+        {/* TABELA */}
         <table className="table table-bordered">
           <thead>
             <tr>
@@ -120,7 +152,7 @@ export default function FormasPagamento() {
           <tbody>
             {formasPagina.length === 0 ? (
               <tr>
-                <td colSpan={3} className="text-center">Nenhuma forma de pagamento</td>
+                <td colSpan={3} className="text-center">Nenhuma forma de pagamento encontrada</td>
               </tr>
             ) : (
               formasPagina.map((forma) => (
@@ -137,6 +169,7 @@ export default function FormasPagamento() {
           </tbody>
         </table>
 
+        {/* PAGINAÇÃO */}
         {totalPaginas > 1 && (
           <nav>
             <ul className="pagination">
