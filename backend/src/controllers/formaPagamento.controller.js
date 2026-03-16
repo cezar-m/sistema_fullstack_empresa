@@ -1,4 +1,3 @@
-// controllers/formaPagamento.controller.js
 import db from "../config/db.js";
 
 /* =========================
@@ -12,19 +11,15 @@ export const criarFormaPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
-    const ativoNum = Number(ativo) || 1; // garante que seja número
-
+    // Insere no banco, sem passar ID (Postgres gera automaticamente)
     const result = await db.query(
       "INSERT INTO formas_pagamento (nome, ativo) VALUES ($1, $2) RETURNING *",
-      [nome.trim(), ativoNum]
+      [nome.trim(), ativo ?? 1] // Se ativo não for passado, default = 1
     );
 
-    res.status(201).json({
-      msg: "Forma de pagamento criada",
-      forma: result.rows[0],
-    });
+    res.json({ msg: "Forma de pagamento criada", forma: result.rows[0] });
   } catch (err) {
-    console.error("Erro criar forma pagamento:", err.message || err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao criar forma de pagamento" });
   }
 };
@@ -35,12 +30,12 @@ export const criarFormaPagamento = async (req, res) => {
 export const listarFormas = async (req, res) => {
   try {
     const result = await db.query(
-      "SELECT * FROM formas_pagamento ORDER BY nome ASC"
+      "SELECT * FROM formas_pagamento ORDER BY id ASC"
     );
     res.json(result.rows);
   } catch (err) {
-    console.error("Erro listar formas:", err.message || err);
-    res.status(500).json({ erro: "Erro ao listar formas" });
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao listar formas de pagamento" });
   }
 };
 
@@ -56,23 +51,18 @@ export const atualizarFormaPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
-    const ativoNum = Number(ativo) || 1;
-
     const result = await db.query(
-      "UPDATE formas_pagamento SET nome=$1, ativo=$2 WHERE id=$3 RETURNING *",
-      [nome.trim(), ativoNum, id]
+      "UPDATE formas_pagamento SET nome = $1, ativo = $2 WHERE id = $3 RETURNING *",
+      [nome.trim(), ativo ?? 1, id]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ erro: "Forma de pagamento não encontrada" });
     }
 
-    res.json({
-      msg: "Forma de pagamento atualizada",
-      forma: result.rows[0],
-    });
+    res.json({ msg: "Forma de pagamento atualizada", forma: result.rows[0] });
   } catch (err) {
-    console.error("Erro atualizar forma pagamento:", err.message || err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao atualizar forma de pagamento" });
   }
 };
@@ -85,7 +75,7 @@ export const excluirFormaPagamento = async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      "DELETE FROM formas_pagamento WHERE id=$1 RETURNING *",
+      "DELETE FROM formas_pagamento WHERE id = $1 RETURNING *",
       [id]
     );
 
@@ -93,9 +83,9 @@ export const excluirFormaPagamento = async (req, res) => {
       return res.status(404).json({ erro: "Forma de pagamento não encontrada" });
     }
 
-    res.json({ msg: "Forma de pagamento excluída" });
+    res.json({ msg: "Forma de pagamento excluída", forma: result.rows[0] });
   } catch (err) {
-    console.error("Erro excluir forma pagamento:", err.message || err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao excluir forma de pagamento" });
   }
 };
