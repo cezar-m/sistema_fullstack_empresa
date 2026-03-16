@@ -4,6 +4,14 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { v4 as uuid } from "uuid";
 
+console.log({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT,
+  jwt: !!process.env.JWT_SECRET
+});
+
 /* =========================
    REGISTER
 ========================= */
