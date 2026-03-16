@@ -15,7 +15,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ erro: "Campos obrigatórios" });
 
     // verifica se email já existe
-    const exist = await db.query("SELECT id FROM usuarios WHERE email=$1", [email]);
+    const exist = await db.query("SELECT id FROM usuarios WHERE email=$1", [email.trim()]);
     if (exist.rows.length)
       return res.status(409).json({ erro: "Email já cadastrado" });
 
@@ -46,12 +46,9 @@ export const login = async (req, res) => {
       return res.status(400).json({ erro: "Email e senha obrigatórios" });
 
     const result = await db.query("SELECT * FROM usuarios WHERE email=$1", [email.trim()]);
-
-    if (!result.rows.length)
-      return res.status(404).json({ erro: "Usuário não encontrado" });
+    if (!result.rows.length) return res.status(404).json({ erro: "Usuário não encontrado" });
 
     const user = result.rows[0];
-
     const ok = await bcrypt.compare(senha, user.senha);
     if (!ok) return res.status(401).json({ erro: "Senha inválida" });
 
@@ -66,11 +63,7 @@ export const login = async (req, res) => {
 
     res.json({
       token,
-      usuario: {
-        id: user.id,
-        nome: user.nome,
-        acesso: user.acesso
-      }
+      usuario: { id: user.id, nome: user.nome, acesso: user.acesso }
     });
 
   } catch (err) {
@@ -91,7 +84,6 @@ export const esqueciSenha = async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ erro: "Email não encontrado" });
 
     const token = uuid();
-
     await db.query("UPDATE usuarios SET reset_token=$1 WHERE email=$2", [token, email.trim()]);
 
     res.json({ msg: "Token criado", reset_token: token });
@@ -108,7 +100,6 @@ export const esqueciSenha = async (req, res) => {
 export const redefinirSenha = async (req, res) => {
   try {
     const { token, novaSenha } = req.body;
-
     if (!token || !novaSenha)
       return res.status(400).json({ erro: "Campos obrigatórios" });
 
@@ -116,11 +107,7 @@ export const redefinirSenha = async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ erro: "Token inválido" });
 
     const hash = await bcrypt.hash(novaSenha, 10);
-
-    await db.query("UPDATE usuarios SET senha=$1, reset_token=NULL WHERE id=$2", [
-      hash,
-      result.rows[0].id
-    ]);
+    await db.query("UPDATE usuarios SET senha=$1, reset_token=NULL WHERE id=$2", [hash, result.rows[0].id]);
 
     res.json({ msg: "Senha alterada com sucesso!" });
 
