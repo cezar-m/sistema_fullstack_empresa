@@ -1,7 +1,7 @@
 import db from "../config/db.js";
 
-// converte qualquer valor para 0 ou 1
-const parseAtivo = (valor) => (Number(valor) === 0 ? 0 : 1);
+// Converte qualquer valor para 0 ou 1
+const parseAtivo = (valor) => (Number(valor) === 1 ? 1 : 0);
 
 export const listarFormas = async (req, res) => {
   try {
