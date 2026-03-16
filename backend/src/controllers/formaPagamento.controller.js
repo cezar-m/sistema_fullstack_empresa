@@ -12,9 +12,12 @@ export const criarFormaPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
+    // Converte ativo para número 0 ou 1
+    const ativoNum = ativo === 0 || ativo === "0" ? 0 : 1;
+
     const result = await db.query(
       "INSERT INTO formas_pagamento (nome, ativo) VALUES ($1, $2) RETURNING *",
-      [nome.trim(), ativo ?? 1]
+      [nome.trim(), ativoNum]
     );
 
     res.json({ msg: "Forma de pagamento criada", forma: result.rows[0] });
@@ -29,7 +32,9 @@ export const criarFormaPagamento = async (req, res) => {
 ========================= */
 export const listarFormas = async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM formas_pagamento ORDER BY id ASC");
+    const result = await db.query(
+      "SELECT * FROM formas_pagamento ORDER BY id ASC"
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -49,9 +54,11 @@ export const atualizarFormaPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
+    const ativoNum = ativo === 0 || ativo === "0" ? 0 : 1;
+
     const result = await db.query(
       "UPDATE formas_pagamento SET nome = $1, ativo = $2 WHERE id = $3 RETURNING *",
-      [nome.trim(), ativo ?? 1, id]
+      [nome.trim(), ativoNum, id]
     );
 
     if (result.rowCount === 0) {
