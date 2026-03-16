@@ -28,30 +28,35 @@ export default function Produtos() {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const produtosPorPagina = 12;
 
-  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+  // API_URL dinâmico
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+  // Carrega produtos e categorias
   useEffect(() => {
     carregarProdutos();
     carregarCategorias();
   }, []);
 
+  // Limpa mensagem após 3s
   useEffect(() => {
     if (!mensagem) return;
     const timer = setTimeout(() => setMensagem(""), 3000);
     return () => clearTimeout(timer);
   }, [mensagem]);
 
+  // Limpa preview antigo
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
 
+  // Formata preço
   const formatarPreco = (valor) => {
     if (valor == null || isNaN(valor)) return "R$ 0,00";
     return Number(valor).toLocaleString("pt-BR", {
       style: "currency",
-      currency: "BRL"
+      currency: "BRL",
     });
   };
 
@@ -63,18 +68,19 @@ export default function Produtos() {
     }
     valor = (parseInt(valor) / 100).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     });
     setPreco(valor);
   };
 
+  // Carrega produtos do usuário
   const carregarProdutos = async () => {
     try {
       const res = await api.get("/products/meus");
       const lista = Array.isArray(res.data) ? res.data : [];
       const produtosComPreco = lista.map((p) => ({
         ...p,
-        preco: p.preco != null ? Number(p.preco) : 0
+        preco: p.preco != null ? Number(p.preco) : 0,
       }));
       setProdutos(produtosComPreco);
     } catch (err) {
@@ -83,6 +89,7 @@ export default function Produtos() {
     }
   };
 
+  // Carrega categorias
   const carregarCategorias = async () => {
     try {
       const res = await api.get("/categorias");
@@ -93,12 +100,14 @@ export default function Produtos() {
     }
   };
 
+  // Seleciona imagem
   const handleImagem = (e) => {
     const file = e.target.files[0];
     setImagem(file);
     if (file) setPreview(URL.createObjectURL(file));
   };
 
+  // Limpa formulário
   const limpar = () => {
     setNome("");
     setPreco("");
@@ -109,6 +118,7 @@ export default function Produtos() {
     setEditadoId(null);
   };
 
+  // Criar ou atualizar produto
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -130,12 +140,12 @@ export default function Produtos() {
     try {
       if (editadoId) {
         await api.put(`/products/${editadoId}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" }
+          headers: { "Content-Type": "multipart/form-data" },
         });
         setMensagem("Produto atualizado com sucesso!");
       } else {
         await api.post("/products", formData, {
-          headers: { "Content-Type": "multipart/form-data" }
+          headers: { "Content-Type": "multipart/form-data" },
         });
         setMensagem("Produto cadastrado com sucesso!");
       }
@@ -149,6 +159,7 @@ export default function Produtos() {
     }
   };
 
+  // Editar produto
   const editar = (p) => {
     setNome(p.nome);
     setPreco(p.preco != null ? p.preco.toFixed(2) : "");
@@ -159,6 +170,7 @@ export default function Produtos() {
     setEditadoId(p.id);
   };
 
+  // Excluir produto
   const excluir = async (id) => {
     if (!window.confirm("Deseja excluir este produto?")) return;
 
@@ -173,6 +185,7 @@ export default function Produtos() {
     }
   };
 
+  // Filtro e busca
   let produtosFiltrados = produtos.filter((p) =>
     (p.nome || "").toLowerCase().includes(busca.toLowerCase())
   );
@@ -281,12 +294,7 @@ export default function Produtos() {
           />
 
           {preview && (
-            <img
-              src={preview}
-              alt="preview"
-              width="120"
-              className="mb-2"
-            />
+            <img src={preview} alt="preview" width="120" className="mb-2" />
           )}
 
           <button className="btn btn-success">
@@ -305,7 +313,6 @@ export default function Produtos() {
               <th>Ações</th>
             </tr>
           </thead>
-
           <tbody>
             {produtosPagina.map((p) => (
               <tr key={p.id}>
