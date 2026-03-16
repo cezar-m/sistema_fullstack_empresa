@@ -1,3 +1,4 @@
+// pages/FormasPagamento.jsx
 import { useState, useEffect } from "react";
 import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
@@ -12,10 +13,17 @@ export default function FormasPagamento() {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const formasPorPagina = 16;
 
+  // =========================
+  // CARREGAR FORMAS
+  // =========================
   const carregarFormas = async () => {
     try {
       const res = await api.get("/formas-pagamento");
-      setFormasPagamento(Array.isArray(res.data) ? res.data : []);
+      // garante que cada ativo seja number
+      const formas = Array.isArray(res.data)
+        ? res.data.map((f) => ({ ...f, ativo: Number(f.ativo) }))
+        : [];
+      setFormasPagamento(formas);
     } catch (err) {
       console.error("Erro ao carregar formas:", err);
       alert(err?.response?.data?.erro || "Erro ao carregar formas");
@@ -26,12 +34,18 @@ export default function FormasPagamento() {
     carregarFormas();
   }, []);
 
+  // =========================
+  // LIMPAR FORMULÁRIO
+  // =========================
   const limpar = () => {
     setNome("");
     setAtivo(true);
     setEditadoId(null);
   };
 
+  // =========================
+  // CRIAR / ATUALIZAR
+  // =========================
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!nome.trim()) return alert("O nome da forma de pagamento é obrigatório");
@@ -54,12 +68,18 @@ export default function FormasPagamento() {
     }
   };
 
+  // =========================
+  // EDITAR
+  // =========================
   const editar = (forma) => {
     setNome(forma.nome);
-    setAtivo(forma.ativo === 1);
+    setAtivo(Number(forma.ativo) === 1); // converte string/number para boolean
     setEditadoId(forma.id);
   };
 
+  // =========================
+  // EXCLUIR
+  // =========================
   const excluir = async (id) => {
     if (!window.confirm("Deseja excluir esta forma de pagamento?")) return;
 
@@ -75,11 +95,17 @@ export default function FormasPagamento() {
     }
   };
 
+  // =========================
+  // PAGINAÇÃO
+  // =========================
   const indexUltimo = paginaAtual * formasPorPagina;
   const indexPrimeiro = indexUltimo - formasPorPagina;
   const formasPagina = formasPagamento.slice(indexPrimeiro, indexUltimo);
   const totalPaginas = Math.ceil(formasPagamento.length / formasPorPagina);
 
+  // =========================
+  // RENDER
+  // =========================
   return (
     <DashboardLayout>
       <div className="mb-2">
@@ -101,8 +127,8 @@ export default function FormasPagamento() {
             <label className="fw-semibold mb-0" style={{ width: "220px" }}>Status:</label>
             <select
               className="form-control w-25"
-              value={ativo ? 1 : 0}
-              onChange={(e) => setAtivo(Number(e.target.value) === 1)}
+              value={ativo ? 1 : 0} // boolean -> number
+              onChange={(e) => setAtivo(Number(e.target.value) === 1)} // string -> boolean
             >
               <option value={1}>Ativo</option>
               <option value={0}>Inativo</option>
@@ -134,7 +160,7 @@ export default function FormasPagamento() {
               formasPagina.map((forma) => (
                 <tr key={forma.id}>
                   <td>{forma.nome}</td>
-                  <td>{forma.ativo === 1 ? "Ativo" : "Inativo"}</td>
+                  <td>{Number(forma.ativo) === 1 ? "Ativo" : "Inativo"}</td>
                   <td>
                     <button className="btn btn-warning btn-sm me-2" onClick={() => editar(forma)}>Editar</button>
                     <button className="btn btn-danger btn-sm" onClick={() => excluir(forma.id)}>Excluir</button>
@@ -145,6 +171,7 @@ export default function FormasPagamento() {
           </tbody>
         </table>
 
+        {/* PAGINAÇÃO */}
         {totalPaginas > 1 && (
           <nav>
             <ul className="pagination">
