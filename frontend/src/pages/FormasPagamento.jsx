@@ -19,7 +19,7 @@ export default function FormasPagamento() {
   const carregarFormas = async () => {
     try {
       const res = await api.get("/formas-pagamento");
-      // garante que cada ativo seja number
+      // Garante que cada ativo seja number
       const formas = Array.isArray(res.data)
         ? res.data.map((f) => ({ ...f, ativo: Number(f.ativo) }))
         : [];
@@ -73,7 +73,7 @@ export default function FormasPagamento() {
   // =========================
   const editar = (forma) => {
     setNome(forma.nome);
-    setAtivo(Number(forma.ativo) === 1); // converte string/number para boolean
+    setAtivo(Number(forma.ativo) === 1); // garante boolean
     setEditadoId(forma.id);
   };
 
@@ -127,8 +127,8 @@ export default function FormasPagamento() {
             <label className="fw-semibold mb-0" style={{ width: "220px" }}>Status:</label>
             <select
               className="form-control w-25"
-              value={ativo ? 1 : 0} // boolean -> number
-              onChange={(e) => setAtivo(Number(e.target.value) === 1)} // string -> boolean
+              value={ativo ? 1 : 0}
+              onChange={(e) => setAtivo(Number(e.target.value) === 1)}
             >
               <option value={1}>Ativo</option>
               <option value={0}>Inativo</option>
