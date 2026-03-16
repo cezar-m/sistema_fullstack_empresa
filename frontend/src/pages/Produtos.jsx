@@ -60,17 +60,22 @@ export default function Produtos() {
     });
   };
 
+  const [preco, setPreco] = useState(""); // Para exibir no input
+  const [precoNumerico, setPrecoNumerico] = useState(0); // Valor real para enviar
+
   const handlePrecoChange = (e) => {
-    let valor = e.target.value.replace(/\D/g, "");
+    let valor = e.target.value.replace(/\D/g, ""); // só números
     if (!valor) {
       setPreco("");
+      setPrecoNumerico(0);
       return;
     }
-    valor = (parseInt(valor) / 100).toLocaleString("pt-BR", {
+    const numero = parseInt(valor); // valor em centavos
+    setPreco((numero / 100).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    setPreco(valor);
+      maximumFractionDigits: 2
+    }));
+    setPrecoNumerico(numero / 100); // envia decimal real
   };
 
   // Carrega produtos do usuário
