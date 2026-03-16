@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 
+// Import das rotas
 import authRoutes from "./src/routes/auth.routes.js";
 import usersRoutes from "./src/routes/users.routes.js";
 import productsRoutes from "./src/routes/products.routes.js";
@@ -17,18 +18,39 @@ import formaPagamentoRoutes from "./src/routes/formaPagamento.routes.js";
 
 const app = express();
 
-app.use(cors());
+// =====================
+// CORS CONFIGURAÇÃO
+// =====================
+app.use(cors({
+  origin: [
+    "https://sistema-fullstack-empresa.vercel.app", // frontend oficial
+    "http://localhost:5000" // caso teste local
+  ],
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  credentials: true // necessário se enviar cookies ou tokens
+}));
+
+// =====================
+// MIDDLEWARES
+// =====================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// rota raiz
+// =====================
+// ROTA RAIZ
+// =====================
 app.get("/", (req, res) => {
   res.send("API Sistema Empresa funcionando 🚀");
 });
 
-// ================= Servir imagens =================
-app.use("/uploads", express.static("uploads"));
+// =====================
+// SERVIR IMAGENS
+// =====================
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
+// =====================
+// ROTAS
+// =====================
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/products", productsRoutes);
@@ -38,8 +60,15 @@ app.use("/api/pagamentos", pagamentosRoutes);
 app.use("/api/estoque", estoqueRoutes);
 app.use("/api/formas-pagamento", formaPagamentoRoutes);
 
+// =====================
+// START SERVER
+// =====================
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-	console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log("CORS permitido para:", [
+    "https://sistema-fullstack-empresa.vercel.app",
+    "http://localhost:5000"
+  ]);
 });
