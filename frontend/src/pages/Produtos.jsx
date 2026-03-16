@@ -10,7 +10,8 @@ export default function Produtos() {
   const [categorias, setCategorias] = useState([]);
 
   const [nome, setNome] = useState("");
-  const [preco, setPreco] = useState("");
+  const [preco, setPreco] = useState(""); // Para exibir no input
+  const [precoNumerico, setPrecoNumerico] = useState(0); // Valor real para enviar
   const [categoria, setCategoria] = useState("");
   const [quantidade, setQuantidade] = useState("");
 
@@ -60,9 +61,7 @@ export default function Produtos() {
     });
   };
 
-  const [preco, setPreco] = useState(""); // Para exibir no input
-  const [precoNumerico, setPrecoNumerico] = useState(0); // Valor real para enviar
-
+  // Atualiza preço do input e valor numérico
   const handlePrecoChange = (e) => {
     let valor = e.target.value.replace(/\D/g, ""); // só números
     if (!valor) {
@@ -73,7 +72,7 @@ export default function Produtos() {
     const numero = parseInt(valor); // valor em centavos
     setPreco((numero / 100).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }));
     setPrecoNumerico(numero / 100); // envia decimal real
   };
@@ -116,6 +115,7 @@ export default function Produtos() {
   const limpar = () => {
     setNome("");
     setPreco("");
+    setPrecoNumerico(0);
     setCategoria("");
     setQuantidade("");
     setImagem(null);
@@ -127,16 +127,14 @@ export default function Produtos() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!nome || !preco || !categoria) {
+    if (!nome || precoNumerico <= 0 || !categoria) {
       alert("Nome, preço e categoria são obrigatórios");
       return;
     }
 
     const formData = new FormData();
     formData.append("nome", nome);
-
-    const precoNumerico = Number(preco.toString().replace(",", "."));
-    formData.append("preco", precoNumerico);
+    formData.append("preco", precoNumerico); // ⚡ usar valor numérico real
     formData.append("categoria", categoria);
     formData.append("quantidade", quantidade || 0);
 
@@ -167,12 +165,15 @@ export default function Produtos() {
   // Editar produto
   const editar = (p) => {
     setNome(p.nome);
-    setPreco(p.preco != null ? p.preco.toFixed(2) : "");
     setCategoria(p.id_categoria || "");
     setQuantidade(p.quantidade ?? "");
     setPreview(p.imagem ? `${API_URL}/uploads/${p.imagem}` : null);
     setImagem(null);
     setEditadoId(p.id);
+
+    // ⚡ Corrige o problema do preço zerando
+    setPrecoNumerico(p.preco ?? 0);
+    setPreco((p.preco ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   };
 
   // Excluir produto
