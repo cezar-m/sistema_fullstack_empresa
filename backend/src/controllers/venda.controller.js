@@ -7,17 +7,28 @@ export const criarVenda = async (req, res) => {
 	try {
 		await db.query("BEGIN");
 
+		// 🔐 valida usuário
+		if (!req.user || !req.user.id) {
+			await db.query("ROLLBACK");
+			return res.status(401).json({
+				erro: "Usuário não autenticado"
+			});
+		}
+
 		const id_usuario = req.user.id;
 		const { itens } = req.body;
 
-		// 🔒 validação forte
+		// 🔒 valida itens
 		if (!itens || !Array.isArray(itens) || itens.length === 0) {
 			await db.query("ROLLBACK");
-			return res.status(400).json({ erro: "Itens obrigatórios" });
+			return res.status(400).json({
+				erro: "Itens obrigatórios"
+			});
 		}
 
 		let total = 0;
 
+		// cria venda
 		const vendaResult = await db.query(
 			`INSERT INTO vendas (id_usuario, total, data_venda)
 			 VALUES ($1, 0, NOW())
@@ -28,83 +39,109 @@ export const criarVenda = async (req, res) => {
 		const id_venda = vendaResult.rows[0].id;
 
 		for (const item of itens) {
-			const { nome, quantidade } = item;
 
-			// 🔒 validação item
-			if (!nome || !quantidade || quantidade <= 0) {
+			let { nome, quantidade } = item;
+
+			if (!nome || quantidade === undefined) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
-					erro: "Produto e quantidade obrigatórios",
+					erro: "Produto e quantidade obrigatórios"
 				});
 			}
 
-			// busca produto
+			nome = nome.trim();
+			quantidade = Number(quantidade);
+
+			if (isNaN(quantidade) || quantidade <= 0) {
+				await db.query("ROLLBACK");
+				return res.status(400).json({
+					erro: `Quantidade inválida para ${nome}`
+				});
+			}
+
+			// 🔍 busca produto (EXATO)
 			const prodResult = await db.query(
 				`SELECT id, nome, preco
 				 FROM produtos
-				 WHERE LOWER(TRIM(nome)) LIKE LOWER($1)
+				 WHERE LOWER(TRIM(nome)) = LOWER($1)
 				 LIMIT 1`,
-				[`%${nome.trim()}%`]
+				[nome]
 			);
 
 			if (prodResult.rows.length === 0) {
 				await db.query("ROLLBACK");
 				return res.status(404).json({
-					erro: `Produto "${nome}" não encontrado`,
+					erro: `Produto "${nome}" não encontrado`
 				});
 			}
 
 			const produto = prodResult.rows[0];
 
-			// 🔒 garante estoque
+			// 🔍 busca estoque
 			const estoqueResult = await db.query(
-				"SELECT quantidade FROM estoque WHERE id_produto = $1",
+				`SELECT quantidade 
+				 FROM estoque 
+				 WHERE id_produto = $1`,
 				[produto.id]
 			);
 
-			let estoqueAtual = 0;
-
 			if (estoqueResult.rows.length === 0) {
-				// cria estoque zerado
-				await db.query(
-					"INSERT INTO estoque (id_produto, quantidade) VALUES ($1, 0)",
-					[produto.id]
-				);
-			} else {
-				estoqueAtual = estoqueResult.rows[0].quantidade;
-			}
-
-			// 🔒 valida estoque
-			if (quantidade > estoqueAtual) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
-					erro: `Estoque insuficiente para ${produto.nome}`,
+					erro: `Produto ${produto.nome} não possui estoque`
 				});
 			}
 
-			const subtotal = Number(produto.preco) * quantidade;
+			const estoqueAtual = Number(estoqueResult.rows[0].quantidade);
+
+			if (quantidade > estoqueAtual) {
+				await db.query("ROLLBACK");
+				return res.status(400).json({
+					erro: `Estoque insuficiente para ${produto.nome}`
+				});
+			}
+
+			const preco = Number(produto.preco);
+
+			if (isNaN(preco)) {
+				await db.query("ROLLBACK");
+				return res.status(500).json({
+					erro: `Preço inválido para ${produto.nome}`
+				});
+			}
+
+			const subtotal = preco * quantidade;
 			total += subtotal;
 
-			// salva item
+			// 💾 salva item
 			await db.query(
 				`INSERT INTO itens_venda
 				 (id_venda, id_produto, quantidade, preco_unitario)
 				 VALUES ($1, $2, $3, $4)`,
-				[id_venda, produto.id, quantidade, produto.preco]
+				[id_venda, produto.id, quantidade, preco]
 			);
 
-			// baixa estoque
-			await db.query(
+			// 🔻 baixa estoque com proteção
+			const updateResult = await db.query(
 				`UPDATE estoque
 				 SET quantidade = quantidade - $1
-				 WHERE id_produto = $2`,
+				 WHERE id_produto = $2
+				 AND quantidade >= $1`,
 				[quantidade, produto.id]
 			);
+
+			// 🔥 proteção contra concorrência
+			if (updateResult.rowCount === 0) {
+				await db.query("ROLLBACK");
+				return res.status(400).json({
+					erro: `Erro ao atualizar estoque de ${produto.nome}`
+				});
+			}
 		}
 
-		// atualiza total
+		// 💰 atualiza total
 		await db.query(
-			"UPDATE vendas SET total = $1 WHERE id = $2",
+			`UPDATE vendas SET total = $1 WHERE id = $2`,
 			[total, id_venda]
 		);
 
@@ -113,24 +150,35 @@ export const criarVenda = async (req, res) => {
 		return res.status(201).json({
 			msg: "Venda criada com sucesso",
 			id_venda,
-			total,
+			total
 		});
+
 	} catch (err) {
+
 		await db.query("ROLLBACK");
+
 		console.error("ERRO CRIAR VENDA:", err);
 
 		return res.status(500).json({
-			erro: "Erro interno do servidor",
-			detalhe: err.message,
+			erro: err.message,
+			detalhe: err.detail
 		});
 	}
 };
+
 
 /* =========================
    LISTAR VENDAS
 ========================= */
 export const listarVendas = async (req, res) => {
 	try {
+
+		if (!req.user || !req.user.id) {
+			return res.status(401).json({
+				erro: "Usuário não autenticado"
+			});
+		}
+
 		const id_usuario = req.user.id;
 
 		const result = await db.query(
@@ -157,12 +205,14 @@ export const listarVendas = async (req, res) => {
 		);
 
 		return res.json(result.rows);
+
 	} catch (err) {
+
 		console.error("ERRO LISTAR VENDAS:", err);
 
 		return res.status(500).json({
-			erro: "Erro ao listar vendas",
-			detalhe: err.message,
+			erro: err.message,
+			detalhe: err.detail
 		});
 	}
 };
