@@ -18,12 +18,18 @@ export const criarVenda = async (req, res) => {
 		let total = 0;
 
 		// cria venda
-		const vendaResult = await db.query(
-			`INSERT INTO vendas (id_usuario, total, data_venda)
-			 VALUES ($1, 0, NOW())
-			 RETURNING id`,
-			[id_usuario]
+		const estoqueCheck = await db.query(
+  			"SELECT * FROM estoque WHERE id_produto = $1",
+  			[produto.id]
 		);
+
+		if (estoqueCheck.rows.length === 0) {
+  			await db.query(
+    			"INSERT INTO estoque (id_produto, quantidade) VALUES ($1, 0)",
+    			[produto.id]
+  			);
+		}
+
 
 		const id_venda = vendaResult.rows[0].id;
 
