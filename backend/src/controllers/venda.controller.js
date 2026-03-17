@@ -10,6 +10,7 @@ export const criarVenda = async (req, res) => {
 		const id_usuario = req.user.id;
 		const { itens } = req.body;
 
+		// 🔒 validação forte
 		if (!itens || !Array.isArray(itens) || itens.length === 0) {
 			await db.query("ROLLBACK");
 			return res.status(400).json({ erro: "Itens obrigatórios" });
@@ -17,7 +18,6 @@ export const criarVenda = async (req, res) => {
 
 		let total = 0;
 
-		// ✅ CRIA VENDA (VOCÊ TINHA APAGADO ISSO)
 		const vendaResult = await db.query(
 			`INSERT INTO vendas (id_usuario, total, data_venda)
 			 VALUES ($1, 0, NOW())
@@ -27,12 +27,10 @@ export const criarVenda = async (req, res) => {
 
 		const id_venda = vendaResult.rows[0].id;
 
-		/* =========================
-		   LOOP DOS ITENS
-		========================= */
 		for (const item of itens) {
 			const { nome, quantidade } = item;
 
+			// 🔒 validação item
 			if (!nome || !quantidade || quantidade <= 0) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
@@ -42,11 +40,9 @@ export const criarVenda = async (req, res) => {
 
 			// busca produto
 			const prodResult = await db.query(
-				`SELECT p.id, p.nome, p.preco,
-				 COALESCE(e.quantidade, 0) AS estoque
-				 FROM produtos p
-				 LEFT JOIN estoque e ON e.id_produto = p.id
-				 WHERE LOWER(TRIM(p.nome)) LIKE LOWER($1)
+				`SELECT id, nome, preco
+				 FROM produtos
+				 WHERE LOWER(TRIM(nome)) LIKE LOWER($1)
 				 LIMIT 1`,
 				[`%${nome.trim()}%`]
 			);
@@ -60,27 +56,25 @@ export const criarVenda = async (req, res) => {
 
 			const produto = prodResult.rows[0];
 
-			// ✅ GARANTE ESTOQUE (SEM ON CONFLICT)
-			const estoqueCheck = await db.query(
-				"SELECT * FROM estoque WHERE id_produto = $1",
-				[produto.id]
-			);
-
-			if (estoqueCheck.rows.length === 0) {
-				await db.query(
-					"INSERT INTO estoque (id_produto, quantidade) VALUES ($1, 0)",
-					[produto.id]
-				);
-			}
-
-			// pega estoque atualizado
-			const estoqueAtualResult = await db.query(
+			// 🔒 garante estoque
+			const estoqueResult = await db.query(
 				"SELECT quantidade FROM estoque WHERE id_produto = $1",
 				[produto.id]
 			);
 
-			const estoqueAtual = estoqueAtualResult.rows[0].quantidade;
+			let estoqueAtual = 0;
 
+			if (estoqueResult.rows.length === 0) {
+				// cria estoque zerado
+				await db.query(
+					"INSERT INTO estoque (id_produto, quantidade) VALUES ($1, 0)",
+					[produto.id]
+				);
+			} else {
+				estoqueAtual = estoqueResult.rows[0].quantidade;
+			}
+
+			// 🔒 valida estoque
 			if (quantidade > estoqueAtual) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
@@ -110,14 +104,14 @@ export const criarVenda = async (req, res) => {
 
 		// atualiza total
 		await db.query(
-			`UPDATE vendas SET total = $1 WHERE id = $2`,
+			"UPDATE vendas SET total = $1 WHERE id = $2",
 			[total, id_venda]
 		);
 
 		await db.query("COMMIT");
 
 		return res.status(201).json({
-			msg: "Venda realizada com sucesso",
+			msg: "Venda criada com sucesso",
 			id_venda,
 			total,
 		});
@@ -126,7 +120,7 @@ export const criarVenda = async (req, res) => {
 		console.error("ERRO CRIAR VENDA:", err);
 
 		return res.status(500).json({
-			erro: "Erro ao criar venda",
+			erro: "Erro interno do servidor",
 			detalhe: err.message,
 		});
 	}
