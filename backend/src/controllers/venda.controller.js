@@ -125,3 +125,44 @@ export const criarVenda = async (req, res) => {
 		});
 	}
 };
+
+/* =========================
+   LISTAR VENDAS
+========================= */
+export const listarVendas = async (req, res) => {
+	try {
+		const id_usuario = req.user.id;
+
+		const result = await db.query(
+			`SELECT 
+				v.id,
+				v.total,
+				v.data_venda,
+				COALESCE(
+					json_agg(
+						json_build_object(
+							'produto', p.nome,
+							'quantidade', iv.quantidade
+						)
+					) FILTER (WHERE iv.id IS NOT NULL),
+					'[]'
+				) AS itens
+			FROM vendas v
+			LEFT JOIN itens_venda iv ON iv.id_venda = v.id
+			LEFT JOIN produtos p ON p.id = iv.id_produto
+			WHERE v.id_usuario = $1
+			GROUP BY v.id
+			ORDER BY v.data_venda DESC`,
+			[id_usuario]
+		);
+
+		return res.json(result.rows);
+	} catch (err) {
+		console.error("ERRO LISTAR VENDAS:", err);
+
+		return res.status(500).json({
+			erro: "Erro ao listar vendas",
+			detalhe: err.message,
+		});
+	}
+};
