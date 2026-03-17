@@ -12,13 +12,24 @@ export const criarPagamento = async (req, res) => {
 			return res.status(401).json({ erro: "Usuário não autenticado" });
 		}
 
-		const { id_produto, forma_pagamento, parcelas } = req.body;
+		const {
+			id_produto,
+			forma_pagamento,
+			parcelas,
+			quantidade
+		} = req.body;
 
 		if (!id_produto || !forma_pagamento) {
-			return res.status(400).json({ erro: "Dados incompletos" });
+			return res.status(400).json({
+				erro: "id_produto e forma_pagamento são obrigatórios"
+			});
 		}
 
-		// 🔥 PRODUTO POR ID (corrigido)
+		const qtd = Number(quantidade) || 1;
+
+		/* =========================
+		   PRODUTO
+		========================= */
 		const produtoResult = await db.query(
 			"SELECT id, nome, preco FROM produtos WHERE id=$1",
 			[id_produto]
@@ -29,90 +40,120 @@ export const criarPagamento = async (req, res) => {
 		}
 
 		const produto = produtoResult.rows[0];
-		const valor = Number(produto.preco);
+		const valorTotal = Number(produto.preco) * qtd;
 
-		// 🔥 BUSCAR VENDA
-		const vendaResult = await db.query(
-			`SELECT v.id
-			 FROM vendas v
-			 JOIN itens_venda iv ON iv.id_venda = v.id
-			 WHERE iv.id_produto=$1 AND v.id_usuario=$2
-			 ORDER BY v.id DESC
-			 LIMIT 1`,
-			[id_produto, req.user.id]
+		/* =========================
+		   ESTOQUE (VALIDAÇÃO)
+		========================= */
+		const estoqueResult = await db.query(
+			"SELECT quantidade FROM estoque WHERE id_produto=$1",
+			[id_produto]
 		);
 
-		let id_venda;
-
-		if (!vendaResult.rows.length) {
-			const novaVenda = await db.query(
-				`INSERT INTO vendas (id_usuario, data_venda)
-				 VALUES($1, NOW())
-				 RETURNING id`,
-				[req.user.id]
-			);
-
-			id_venda = novaVenda.rows[0].id;
-
-			await db.query(
-				`INSERT INTO itens_venda (id_venda, id_produto, quantidade)
-				 VALUES($1,$2,$3)`,
-				[id_venda, id_produto, 1]
-			);
-		} else {
-			id_venda = vendaResult.rows[0].id;
+		if (!estoqueResult.rows.length) {
+			return res.status(400).json({
+				erro: "Produto sem estoque cadastrado"
+			});
 		}
 
-		// 🔥 FORMA DE PAGAMENTO
+		const estoqueAtual = Number(estoqueResult.rows[0].quantidade);
+
+		if (estoqueAtual < qtd) {
+			return res.status(400).json({
+				erro: "Estoque insuficiente"
+			});
+		}
+
+		/* =========================
+		   VENDA
+		========================= */
+		const venda = await db.query(
+			`INSERT INTO vendas (id_usuario, data_venda)
+			 VALUES ($1, NOW())
+			 RETURNING id`,
+			[req.user.id]
+		);
+
+		const id_venda = venda.rows[0].id;
+
+		await db.query(
+			`INSERT INTO itens_venda (id_venda, id_produto, quantidade)
+			 VALUES ($1,$2,$3)`,
+			[id_venda, id_produto, qtd]
+		);
+
+		/* =========================
+		   FORMA PAGAMENTO
+		========================= */
 		const formaResult = await db.query(
 			"SELECT id FROM formas_pagamento WHERE nome=$1 AND ativo=true",
 			[forma_pagamento]
 		);
 
 		if (!formaResult.rows.length) {
-			return res.status(404).json({ erro: "Forma de pagamento inválida" });
+			return res.status(400).json({
+				erro: "Forma de pagamento inválida"
+			});
 		}
 
 		const id_forma_pagamento = formaResult.rows[0].id;
 
-		// 🔥 INSERIR PAGAMENTO
+		/* =========================
+		   PAGAMENTO
+		========================= */
 		const pagamentoResult = await db.query(
 			`INSERT INTO pagamentos
 			 (id_venda, id_forma_pagamento, valor, status, data_pagamento)
-			 VALUES($1,$2,$3,$4,NOW())
+			 VALUES ($1,$2,$3,$4,NOW())
 			 RETURNING id`,
-			[id_venda, id_forma_pagamento, valor, "pago"]
+			[id_venda, id_forma_pagamento, valorTotal, "pago"]
 		);
 
 		const id_pagamento = pagamentoResult.rows[0].id;
 
-		// 🔥 PARCELAS
-		if (parcelas && Array.isArray(parcelas)) {
+		/* =========================
+		   PARCELAS
+		========================= */
+		if (Array.isArray(parcelas) && parcelas.length > 0) {
 			for (const p of parcelas) {
 				await db.query(
 					`INSERT INTO parcelas
 					 (id_pagamento, numero_parcela, valor, data_vencimento, status)
-					 VALUES($1,$2,$3,$4,$5)`,
+					 VALUES ($1,$2,$3,$4,$5)`,
 					[
 						id_pagamento,
 						p.numero,
 						p.valor,
 						p.data_vencimento,
-						"pendente",
+						p.status || "pendente",
 					]
 				);
 			}
 		}
 
+		/* =========================
+		   BAIXAR ESTOQUE
+		========================= */
+		await db.query(
+			`UPDATE estoque
+			 SET quantidade = quantidade - $1
+			 WHERE id_produto=$2`,
+			[qtd, id_produto]
+		);
+
 		res.json({
 			msg: "Pagamento criado com sucesso",
-			id_pagamento,
+			id_pagamento
 		});
+
 	} catch (err) {
 		console.error("ERRO REAL:", err);
-		res.status(500).json({ erro: err.message });
+		res.status(500).json({
+			erro: err.message
+		});
 	}
 };
+
 
 /* =========================
    LISTAR PAGAMENTOS
@@ -143,11 +184,13 @@ export const listarPagamentosPorId = async (req, res) => {
 		);
 
 		res.json(result.rows);
+
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ erro: err.message });
 	}
 };
+
 
 /* =========================
    MARCAR COMO PAGO
@@ -155,10 +198,6 @@ export const listarPagamentosPorId = async (req, res) => {
 export const marcarComoPago = async (req, res) => {
 	try {
 		const { id } = req.params;
-
-		if (!id) {
-			return res.status(400).json({ erro: "ID inválido" });
-		}
 
 		await db.query(
 			`UPDATE pagamentos
@@ -171,11 +210,13 @@ export const marcarComoPago = async (req, res) => {
 		);
 
 		res.json({ msg: "Pagamento atualizado" });
+
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ erro: err.message });
 	}
 };
+
 
 /* =========================
    ATUALIZAR PARCELA
@@ -185,21 +226,19 @@ export const atualizarParcela = async (req, res) => {
 		const { id } = req.params;
 		const { status } = req.body;
 
-		if (!id) {
-			return res.status(400).json({ erro: "ID inválido" });
-		}
-
 		await db.query(
 			`UPDATE parcelas SET status=$1 WHERE id=$2`,
 			[status, id]
 		);
 
 		res.json({ msg: "Parcela atualizada" });
+
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ erro: err.message });
 	}
 };
+
 
 /* =========================
    LISTAR PARCELAS
@@ -225,6 +264,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
 		);
 
 		res.json(result.rows);
+
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ erro: err.message });
