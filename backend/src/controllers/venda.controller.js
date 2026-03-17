@@ -4,143 +4,169 @@ import db from "../config/db.js";
    CRIAR VENDA
 ========================= */
 export const criarVenda = async (req, res) => {
-
 	try {
-
 		await db.query("BEGIN");
 
 		const id_usuario = req.user.id;
 		const { itens } = req.body;
 
-		if(!itens || !Array.isArray(itens) || itens.length === 0){
-			return res.status(400).json({ erro:"Itens obrigatórios" });
+		if (!itens || !Array.isArray(itens) || itens.length === 0) {
+			await db.query("ROLLBACK");
+			return res.status(400).json({ erro: "Itens obrigatórios" });
 		}
 
 		let total = 0;
 
+		// cria venda zerada
 		const vendaResult = await db.query(
 			`INSERT INTO vendas (id_usuario, total, data_venda)
-			VALUES ($1,0,NOW()) RETURNING id`,
+			 VALUES ($1, 0, NOW())
+			 RETURNING id`,
 			[id_usuario]
 		);
 
 		const id_venda = vendaResult.rows[0].id;
 
-		for(const item of itens){
+		/* =========================
+		   LOOP DOS ITENS
+		========================= */
+		for (const item of itens) {
+			const { id_produto, quantidade } = item;
 
-			const { nome, quantidade } = item;
-
-			if(!nome || !quantidade || quantidade <= 0){
+			if (!id_produto || !quantidade || quantidade <= 0) {
 				await db.query("ROLLBACK");
-				return res.status(400).json({ erro:"Produto e quantidade obrigatórios" });
+				return res.status(400).json({
+					erro: "ID do produto e quantidade obrigatórios",
+				});
 			}
 
+			// busca produto
 			const prodResult = await db.query(
-				`SELECT p.id, p.nome, p.preco,
-				COALESCE(e.quantidade,0) AS estoque
-				FROM produtos p
-				LEFT JOIN estoque e ON e.id_produto = p.id
-				WHERE LOWER(TRIM(p.nome)) LIKE LOWER($1)
-				LIMIT 1`,
-				[`%${nome.trim()}%`]
+				`SELECT id, nome, preco
+				 FROM produtos
+				 WHERE id = $1`,
+				[id_produto]
 			);
 
-			if(prodResult.rows.length === 0){
+			if (prodResult.rows.length === 0) {
 				await db.query("ROLLBACK");
-				return res.status(404).json({ erro:`Produto "${nome}" não encontrado` });
+				return res.status(404).json({
+					erro: `Produto ID ${id_produto} não encontrado`,
+				});
 			}
 
 			const produto = prodResult.rows[0];
 
-			if(quantidade > produto.estoque){
+			// garante que existe estoque
+			await db.query(
+				`INSERT INTO estoque (id_produto, quantidade)
+				 VALUES ($1, 0)
+				 ON CONFLICT (id_produto) DO NOTHING`,
+				[produto.id]
+			);
+
+			// pega estoque atual
+			const estoqueResult = await db.query(
+				`SELECT quantidade
+				 FROM estoque
+				 WHERE id_produto = $1
+				 FOR UPDATE`,
+				[produto.id]
+			);
+
+			const estoqueAtual = estoqueResult.rows[0].quantidade;
+
+			if (quantidade > estoqueAtual) {
 				await db.query("ROLLBACK");
-				return res.status(400).json({ erro:`Estoque insuficiente para ${produto.nome}` });
+				return res.status(400).json({
+					erro: `Estoque insuficiente para ${produto.nome}`,
+				});
 			}
 
-			const subtotal = produto.preco * quantidade;
+			const subtotal = Number(produto.preco) * quantidade;
 			total += subtotal;
 
+			// salva item
 			await db.query(
 				`INSERT INTO itens_venda
-				(id_venda, id_produto, quantidade, preco_unitario)
-				VALUES ($1,$2,$3,$4)`,
+				 (id_venda, id_produto, quantidade, preco_unitario)
+				 VALUES ($1, $2, $3, $4)`,
 				[id_venda, produto.id, quantidade, produto.preco]
 			);
 
+			// baixa estoque
 			await db.query(
 				`UPDATE estoque
-				SET quantidade = quantidade - $1
-				WHERE id_produto = $2`,
+				 SET quantidade = quantidade - $1
+				 WHERE id_produto = $2`,
 				[quantidade, produto.id]
 			);
-
 		}
 
+		// atualiza total
 		await db.query(
-			`UPDATE vendas SET total = $1 WHERE id = $2`,
+			`UPDATE vendas
+			 SET total = $1
+			 WHERE id = $2`,
 			[total, id_venda]
 		);
 
 		await db.query("COMMIT");
 
-		res.json({
-			msg:"Venda realizada com sucesso",
+		return res.status(201).json({
+			msg: "Venda realizada com sucesso",
 			id_venda,
-			total
+			total,
 		});
-
-	}catch(err){
-
+	} catch (err) {
 		await db.query("ROLLBACK");
+		console.error("ERRO CRIAR VENDA:", err);
 
-		console.error(err);
-		res.status(500).json({ erro:"Erro ao criar venda" });
-
+		return res.status(500).json({
+			erro: "Erro ao criar venda",
+			detalhe: err.message,
+		});
 	}
 };
 
-
 /* =========================
-   LISTAR VENDAS (USUÁRIO)
+   LISTAR VENDAS
 ========================= */
 export const listarVendas = async (req, res) => {
-
-	try{
-
+	try {
 		const id_usuario = req.user.id;
 
-		const vendasResult = await db.query(`
-			SELECT id,total,data_venda
-			FROM vendas
-			WHERE id_usuario = $1
-			ORDER BY data_venda DESC
-		`,[id_usuario]);
+		const vendasResult = await db.query(
+			`SELECT id, total, data_venda
+			 FROM vendas
+			 WHERE id_usuario = $1
+			 ORDER BY data_venda DESC`,
+			[id_usuario]
+		);
 
 		const vendas = vendasResult.rows;
 
-		for(const venda of vendas){
-
-			const itensResult = await db.query(`
-				SELECT 
+		for (const venda of vendas) {
+			const itensResult = await db.query(
+				`SELECT 
 					p.nome AS produto,
 					iv.quantidade,
 					iv.preco_unitario
-				FROM itens_venda iv
-				JOIN produtos p ON p.id = iv.id_produto
-				WHERE iv.id_venda = $1
-			`,[venda.id]);
+				 FROM itens_venda iv
+				 JOIN produtos p ON p.id = iv.id_produto
+				 WHERE iv.id_venda = $1`,
+				[venda.id]
+			);
 
 			venda.itens = itensResult.rows;
-
 		}
 
-		res.json(vendas);
+		return res.json(vendas);
+	} catch (err) {
+		console.error("ERRO LISTAR:", err);
 
-	}catch(err){
-
-		console.error(err);
-		res.status(500).json({ erro:"Erro ao listar vendas" });
-
+		return res.status(500).json({
+			erro: "Erro ao listar vendas",
+		});
 	}
-
 };
