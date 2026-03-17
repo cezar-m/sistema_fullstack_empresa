@@ -11,9 +11,9 @@ router.get("/", auth, controller.listarEstoque);
 router.post("/", auth, controller.cadastrarEstoque);
 
 // Atualizar estoque pelo nome do produto
-router.put("/", auth, controller.atualizarEstoque);
+router.put("/:id_produto", auth, controller.atualizarEstoque);
 
 // Deletar estoque pelo nome do produto
-router.delete("/", auth, controller.deletarEstoque);
+router.delete("/:id_produto", auth, controller.deletarEstoque);
 
 export default router;
