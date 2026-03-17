@@ -5,8 +5,14 @@ import db from "../config/db.js";
 ========================= */
 
 export const cadastrarEstoque = async (req, res) => {
-
 	try {
+
+		// 🔐 valida usuário
+		if (!req.user || !req.user.id) {
+			return res.status(401).json({
+				erro: "Usuário não autenticado"
+			});
+		}
 
 		let { nome_produto, quantidade } = req.body;
 
@@ -19,7 +25,13 @@ export const cadastrarEstoque = async (req, res) => {
 		nome_produto = nome_produto.trim();
 		quantidade = Number(quantidade);
 
-		// procura produto existente
+		if (isNaN(quantidade)) {
+			return res.status(400).json({
+				erro: "Quantidade inválida"
+			});
+		}
+
+		// 🔍 busca produto
 		const prod = await db.query(
 			`SELECT id FROM produtos WHERE LOWER(nome)=LOWER($1)`,
 			[nome_produto]
@@ -29,7 +41,7 @@ export const cadastrarEstoque = async (req, res) => {
 
 		if (prod.rows.length === 0) {
 
-			// cria produto se não existir
+			// ⚠️ cria produto se não existir
 			const result = await db.query(
 				`INSERT INTO produtos
 				(nome, preco, imagem, id_categoria, id_usuario)
@@ -37,22 +49,20 @@ export const cadastrarEstoque = async (req, res) => {
 				RETURNING id`,
 				[
 					nome_produto,
-					0,           // preco obrigatório
-					"",          // imagem vazia
-					1,           // categoria padrão
-					req.user.id  // usuário logado
+					0,
+					"",
+					1, // ⚠️ precisa existir no banco
+					req.user.id
 				]
 			);
 
 			id_produto = result.rows[0].id;
 
 		} else {
-
 			id_produto = prod.rows[0].id;
-
 		}
 
-		// verifica estoque existente
+		// 🔍 verifica estoque existente
 		const estoque = await db.query(
 			`SELECT * FROM estoque WHERE id_produto=$1`,
 			[id_produto]
@@ -64,6 +74,7 @@ export const cadastrarEstoque = async (req, res) => {
 			});
 		}
 
+		// 💾 insere estoque
 		await db.query(
 			`INSERT INTO estoque (id_produto, quantidade)
 			 VALUES ($1,$2)`,
@@ -79,11 +90,10 @@ export const cadastrarEstoque = async (req, res) => {
 		console.error("ERRO ESTOQUE:", err);
 
 		res.status(500).json({
-			erro: err.message
+			erro: err.message,
+			detalhe: err.detail // 🔥 ajuda MUITO debug
 		});
-
 	}
-
 };
 
 
@@ -92,7 +102,6 @@ export const cadastrarEstoque = async (req, res) => {
 ========================= */
 
 export const listarEstoque = async (req, res) => {
-
 	try {
 
 		const result = await db.query(
@@ -115,9 +124,7 @@ export const listarEstoque = async (req, res) => {
 		res.status(500).json({
 			erro: "Erro ao listar estoque"
 		});
-
 	}
-
 };
 
 
@@ -126,23 +133,32 @@ export const listarEstoque = async (req, res) => {
 ========================= */
 
 export const atualizarEstoque = async (req, res) => {
-
 	try {
 
-		let { id_produto, quantidade } = req.body;
+		const { id_produto } = req.params;
+		let { quantidade } = req.body;
 
-		if (!id_produto || quantidade === undefined) {
+		const id = Number(id_produto);
+		quantidade = Number(quantidade);
+
+		if (isNaN(id) || isNaN(quantidade)) {
 			return res.status(400).json({
-				erro: "id_produto e quantidade obrigatórios"
+				erro: "Dados inválidos"
 			});
 		}
 
-		await db.query(
+		const result = await db.query(
 			`UPDATE estoque
 			 SET quantidade=$1
 			 WHERE id_produto=$2`,
-			[quantidade, id_produto]
+			[quantidade, id]
 		);
+
+		if (result.rowCount === 0) {
+			return res.status(404).json({
+				erro: "Estoque não encontrado"
+			});
+		}
 
 		res.json({
 			msg: "Estoque atualizado"
@@ -153,11 +169,9 @@ export const atualizarEstoque = async (req, res) => {
 		console.error(err);
 
 		res.status(500).json({
-			erro: "Erro ao atualizar estoque"
+			erro: err.message
 		});
-
 	}
-
 };
 
 
@@ -166,21 +180,27 @@ export const atualizarEstoque = async (req, res) => {
 ========================= */
 
 export const deletarEstoque = async (req, res) => {
-
 	try {
 
-		const { id_produto } = req.body;
+		const { id_produto } = req.params;
+		const id = Number(id_produto);
 
-		if (!id_produto) {
+		if (isNaN(id)) {
 			return res.status(400).json({
-				erro: "id_produto obrigatório"
+				erro: "ID inválido"
 			});
 		}
 
-		await db.query(
+		const result = await db.query(
 			`DELETE FROM estoque WHERE id_produto=$1`,
-			[id_produto]
+			[id]
 		);
+
+		if (result.rowCount === 0) {
+			return res.status(404).json({
+				erro: "Estoque não encontrado"
+			});
+		}
 
 		res.json({
 			msg: "Estoque removido"
@@ -191,9 +211,7 @@ export const deletarEstoque = async (req, res) => {
 		console.error(err);
 
 		res.status(500).json({
-			erro: "Erro ao deletar estoque"
+			erro: err.message
 		});
-
 	}
-
 };
