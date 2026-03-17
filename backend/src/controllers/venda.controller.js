@@ -17,7 +17,7 @@ export const criarVenda = async (req, res) => {
 
 		let total = 0;
 
-		// cria venda zerada
+		// cria venda
 		const vendaResult = await db.query(
 			`INSERT INTO vendas (id_usuario, total, data_venda)
 			 VALUES ($1, 0, NOW())
@@ -31,33 +31,36 @@ export const criarVenda = async (req, res) => {
 		   LOOP DOS ITENS
 		========================= */
 		for (const item of itens) {
-			const { id_produto, quantidade } = item;
+			const { nome, quantidade } = item;
 
-			if (!id_produto || !quantidade || quantidade <= 0) {
+			if (!nome || !quantidade || quantidade <= 0) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
-					erro: "ID do produto e quantidade obrigatórios",
+					erro: "Produto e quantidade obrigatórios",
 				});
 			}
 
-			// busca produto
+			// busca produto pelo nome
 			const prodResult = await db.query(
-				`SELECT id, nome, preco
-				 FROM produtos
-				 WHERE id = $1`,
-				[id_produto]
+				`SELECT p.id, p.nome, p.preco,
+				 COALESCE(e.quantidade, 0) AS estoque
+				 FROM produtos p
+				 LEFT JOIN estoque e ON e.id_produto = p.id
+				 WHERE LOWER(TRIM(p.nome)) LIKE LOWER($1)
+				 LIMIT 1`,
+				[`%${nome.trim()}%`]
 			);
 
 			if (prodResult.rows.length === 0) {
 				await db.query("ROLLBACK");
 				return res.status(404).json({
-					erro: `Produto ID ${id_produto} não encontrado`,
+					erro: `Produto "${nome}" não encontrado`,
 				});
 			}
 
 			const produto = prodResult.rows[0];
 
-			// garante que existe estoque
+			// garante estoque existe
 			await db.query(
 				`INSERT INTO estoque (id_produto, quantidade)
 				 VALUES ($1, 0)
@@ -65,18 +68,7 @@ export const criarVenda = async (req, res) => {
 				[produto.id]
 			);
 
-			// pega estoque atual
-			const estoqueResult = await db.query(
-				`SELECT quantidade
-				 FROM estoque
-				 WHERE id_produto = $1
-				 FOR UPDATE`,
-				[produto.id]
-			);
-
-			const estoqueAtual = estoqueResult.rows[0].quantidade;
-
-			if (quantidade > estoqueAtual) {
+			if (quantidade > produto.estoque) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
 					erro: `Estoque insuficiente para ${produto.nome}`,
