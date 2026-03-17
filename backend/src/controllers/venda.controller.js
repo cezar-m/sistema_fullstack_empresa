@@ -17,19 +17,13 @@ export const criarVenda = async (req, res) => {
 
 		let total = 0;
 
-		// cria venda
-		const estoqueCheck = await db.query(
-  			"SELECT * FROM estoque WHERE id_produto = $1",
-  			[produto.id]
+		// ✅ CRIA VENDA (VOCÊ TINHA APAGADO ISSO)
+		const vendaResult = await db.query(
+			`INSERT INTO vendas (id_usuario, total, data_venda)
+			 VALUES ($1, 0, NOW())
+			 RETURNING id`,
+			[id_usuario]
 		);
-
-		if (estoqueCheck.rows.length === 0) {
-  			await db.query(
-    			"INSERT INTO estoque (id_produto, quantidade) VALUES ($1, 0)",
-    			[produto.id]
-  			);
-		}
-
 
 		const id_venda = vendaResult.rows[0].id;
 
@@ -46,7 +40,7 @@ export const criarVenda = async (req, res) => {
 				});
 			}
 
-			// busca produto pelo nome
+			// busca produto
 			const prodResult = await db.query(
 				`SELECT p.id, p.nome, p.preco,
 				 COALESCE(e.quantidade, 0) AS estoque
@@ -66,15 +60,28 @@ export const criarVenda = async (req, res) => {
 
 			const produto = prodResult.rows[0];
 
-			// garante estoque existe
-			await db.query(
-				`INSERT INTO estoque (id_produto, quantidade)
-				 VALUES ($1, 0)
-				 ON CONFLICT (id_produto) DO NOTHING`,
+			// ✅ GARANTE ESTOQUE (SEM ON CONFLICT)
+			const estoqueCheck = await db.query(
+				"SELECT * FROM estoque WHERE id_produto = $1",
 				[produto.id]
 			);
 
-			if (quantidade > produto.estoque) {
+			if (estoqueCheck.rows.length === 0) {
+				await db.query(
+					"INSERT INTO estoque (id_produto, quantidade) VALUES ($1, 0)",
+					[produto.id]
+				);
+			}
+
+			// pega estoque atualizado
+			const estoqueAtualResult = await db.query(
+				"SELECT quantidade FROM estoque WHERE id_produto = $1",
+				[produto.id]
+			);
+
+			const estoqueAtual = estoqueAtualResult.rows[0].quantidade;
+
+			if (quantidade > estoqueAtual) {
 				await db.query("ROLLBACK");
 				return res.status(400).json({
 					erro: `Estoque insuficiente para ${produto.nome}`,
@@ -103,9 +110,7 @@ export const criarVenda = async (req, res) => {
 
 		// atualiza total
 		await db.query(
-			`UPDATE vendas
-			 SET total = $1
-			 WHERE id = $2`,
+			`UPDATE vendas SET total = $1 WHERE id = $2`,
 			[total, id_venda]
 		);
 
@@ -123,48 +128,6 @@ export const criarVenda = async (req, res) => {
 		return res.status(500).json({
 			erro: "Erro ao criar venda",
 			detalhe: err.message,
-		});
-	}
-};
-
-/* =========================
-   LISTAR VENDAS
-========================= */
-export const listarVendas = async (req, res) => {
-	try {
-		const id_usuario = req.user.id;
-
-		const vendasResult = await db.query(
-			`SELECT id, total, data_venda
-			 FROM vendas
-			 WHERE id_usuario = $1
-			 ORDER BY data_venda DESC`,
-			[id_usuario]
-		);
-
-		const vendas = vendasResult.rows;
-
-		for (const venda of vendas) {
-			const itensResult = await db.query(
-				`SELECT 
-					p.nome AS produto,
-					iv.quantidade,
-					iv.preco_unitario
-				 FROM itens_venda iv
-				 JOIN produtos p ON p.id = iv.id_produto
-				 WHERE iv.id_venda = $1`,
-				[venda.id]
-			);
-
-			venda.itens = itensResult.rows;
-		}
-
-		return res.json(vendas);
-	} catch (err) {
-		console.error("ERRO LISTAR:", err);
-
-		return res.status(500).json({
-			erro: "Erro ao listar vendas",
 		});
 	}
 };
