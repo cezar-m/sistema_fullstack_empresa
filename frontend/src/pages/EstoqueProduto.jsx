@@ -1,55 +1,55 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import api from "../api/api";
+
 export default function Estoque() {
-	const [idProduto, setIdProduto] = useState(null); // ID do produto selecionado
+	const [idProduto, setIdProduto] = useState(null);
 	const [nomeProduto, setNomeProduto] = useState("");
 	const [quantidade, setQuantidade] = useState(0);
 	const [estoque, setEstoque] = useState([]);
 	const [mensagem, setMensagem] = useState("");
 	const [paginaAtual, setPaginaAtual] = useState(1);
 	const [itensPorPagina] = useState(10);
-	
+
 	const token = localStorage.getItem("token");
-	
-	const [tipoMensagem, setTipoMensagem] = useState("");
 
 	useEffect(() => {
-		if(!mensagem) return;
-		
-		const timer = setTimeout(() => {
-			setMensagem("")
-		}, 3000);
-
-		return() => clearTimeout(timer);
+		if (!mensagem) return;
+		const timer = setTimeout(() => setMensagem(""), 3000);
+		return () => clearTimeout(timer);
 	}, [mensagem]);
-	
-	 /* ========================= LISTAR ESTOQUE ========================= */
-	const listarEstoque = async() => {
+
+	/* ========================= LISTAR ========================= */
+	const listarEstoque = async () => {
 		try {
-			const res = await api.get("/estoque")
+			const res = await api.get("/estoque", {
+				headers: { Authorization: `Bearer ${token}` },
+			});
 			setEstoque(res.data);
-		} catch(err) {
+		} catch (err) {
 			console.error(err);
 			setEstoque([]);
 		}
 	};
-	
+
 	useEffect(() => {
-		listarEstoque();	
+		listarEstoque();
 	}, []);
-	
-	 /* ========================= CADASTRAR ========================= */
+
+	/* ========================= CADASTRAR ========================= */
 	const cadastrarEstoque = async () => {
-		if(!nomeProduto || quantidade <= 0) {
+		if (!nomeProduto || quantidade <= 0) {
 			setMensagem("Preencha nome e quantidade!");
 			return;
 		}
+
 		try {
-			const res = await api.post("/estoque",
+			const res = await api.post(
+				"/estoque",
 				{ nome_produto: nomeProduto, quantidade },
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
+
 			setMensagem(res.data.msg);
 			limparCampos();
 			listarEstoque();
@@ -57,18 +57,21 @@ export default function Estoque() {
 			setMensagem(err?.response?.data?.erro || "Erro ao cadastrar");
 		}
 	};
-	
-	 /* ========================= ATUALIZAR ========================= */
+
+	/* ========================= ATUALIZAR ========================= */
 	const atualizarEstoque = async () => {
-		if(!idProduto || !nomeProduto || quantidade < 0) {
-			setMensagem("Selecione um produto e preencha quantidade!");
+		if (!idProduto || quantidade < 0) {
+			setMensagem("Selecione um produto!");
 			return;
 		}
+
 		try {
-			const res = await api.put("/estoque", 
-				{ id_produto: idProduto, nome_produto: nomeProduto, quantidade },
+			const res = await api.put(
+				`/estoque/${idProduto}`, // 🔥 CORRETO
+				{ quantidade },
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
+
 			setMensagem(res.data.msg);
 			limparCampos();
 			listarEstoque();
@@ -76,14 +79,15 @@ export default function Estoque() {
 			setMensagem(err?.response?.data?.erro || "Erro ao atualizar");
 		}
 	};
-	
+
 	/* ========================= DELETAR ========================= */
 	const deletarEstoque = async (id) => {
 		try {
-			const res = await api.delete("/estoque", {
-				headers: { Authorization: `Bearer ${token}` },
-				data: { id_produto: id },
-			});
+			const res = await api.delete(
+				`/estoque/${id}`, // 🔥 CORRETO
+				{ headers: { Authorization: `Bearer ${token}` } }
+			);
+
 			setMensagem(res.data.msg);
 			limparCampos();
 			listarEstoque();
@@ -91,59 +95,60 @@ export default function Estoque() {
 			setMensagem(err?.response?.data?.erro || "Erro ao deletar");
 		}
 	};
-	
+
 	const limparCampos = () => {
 		setIdProduto(null);
 		setNomeProduto("");
 		setQuantidade(0);
 	};
-	
+
 	// Paginação
 	const indexUltimoItem = paginaAtual * itensPorPagina;
 	const indexPrimeiroItem = indexUltimoItem - itensPorPagina;
 	const estoquePagina = estoque.slice(indexPrimeiroItem, indexUltimoItem);
 	const totalPaginas = Math.ceil(estoque.length / itensPorPagina);
-	
+
 	const mudarPagina = (num) => setPaginaAtual(num);
-	
-	return(
+
+	return (
 		<DashboardLayout>
 			<div className="container mt-4">
 				<h3>Gerenciar Estoque</h3>
-				
+
 				{mensagem && <div className="alert alert-info">{mensagem}</div>}
-				
+
 				<div className="card shadow mb-4">
 					<div className="card-header bg-primary text-white fw-bold">
 						Cadastrar / Atualizar
 					</div>
+
 					<div className="card-body">
 						<div className="row g-3">
-							<div className="col-md-6 d-flex align-items-center gap-2">
-								<span className="fw-semibold">Nome Produto:</span>
+							<div className="col-md-6 d-flex gap-2">
 								<input
 									type="text"
-									className="form-control w-75"
+									className="form-control"
 									placeholder="Nome do produto"
 									value={nomeProduto}
 									onChange={(e) => setNomeProduto(e.target.value)}
 								/>
 							</div>
-							<div className="col-md-3 d-flex align-items-center gap-2">
-								<span className="fw-semibold">Quantidade:</span>
-								<input 
+
+							<div className="col-md-3">
+								<input
 									type="number"
-									className="form-control w-75"
+									className="form-control"
 									placeholder="Quantidade"
-									min="0"
 									value={quantidade}
 									onChange={(e) => setQuantidade(Number(e.target.value))}
 								/>
 							</div>
+
 							<div className="col-md-3 d-flex gap-2">
 								<button className="btn btn-success w-100" onClick={cadastrarEstoque}>
 									Cadastrar
 								</button>
+
 								<button className="btn btn-warning w-100" onClick={atualizarEstoque}>
 									Atualizar
 								</button>
@@ -151,66 +156,62 @@ export default function Estoque() {
 						</div>
 					</div>
 				</div>
-				
+
 				<div className="card shadow">
 					<div className="card-header bg-dark text-white fw-bold">
 						Estoque Atual
 					</div>
+
 					<div className="card-body table-responsive">
-						{estoque.length === 0 ? (
-							<p>Nenhum produto em estoque.</p>
-						) : (
-							<>
-								<table className="table table-bordered table-hover">
-									<thead className="table-light">
-										<tr>
-											<th>Produto</th>
-											<th>Quantidade</th>
-											<th>Ações</th>
-										</tr>
-									</thead>
-									<tbody>
-										{estoquePagina.map((item) => (
-											<tr
-												key={item.id_produto}
-												onClick={() => {
-													setIdProduto(item.id_produto);
-													setNomeProduto(item.produto);
-													setQuantidade(item.quantidade);
+						<table className="table table-bordered">
+							<thead>
+								<tr>
+									<th>Produto</th>
+									<th>Quantidade</th>
+									<th>Ações</th>
+								</tr>
+							</thead>
+
+							<tbody>
+								{estoquePagina.map((item) => (
+									<tr
+										key={item.id_produto}
+										onClick={() => {
+											setIdProduto(item.id_produto);
+											setNomeProduto(item.produto);
+											setQuantidade(item.quantidade);
+										}}
+										style={{ cursor: "pointer" }}
+									>
+										<td>{item.produto}</td>
+										<td>{item.quantidade}</td>
+										<td>
+											<button
+												className="btn btn-danger btn-sm"
+												onClick={(e) => {
+													e.stopPropagation();
+													deletarEstoque(item.id_produto);
 												}}
-												style={{ cursor: "pointer" }}
 											>
-												<td>{item.produto}</td>
-												<td>{item.quantidade}</td>
-												<td>
-													<button
-														className="btn btn-danger btn-sm"
-														onClick={(e) => {
-															e.stopPropagation();
-															deletarEstoque(item.id_produto)
-														}}
-													>
-														Deletar
-													</button>
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-								
-								<nav>
-									<ul className="pagination justify-content-center">
-										{Array.from({ length: totalPaginas }, (_, i) =>(
-											<li key={i + 1} className={`page-item ${paginaAtual === i + 1 ? "active" : ""}`}>
-												<button className="page-link" onClick={() => mudarPagina(i + 1)}>
-													{i + 1}
-												</button>
-											</li>
-										))}
-									</ul>
-								</nav>
-							</>
-						)}
+												Deletar
+											</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+
+						<div className="d-flex justify-content-center">
+							{Array.from({ length: totalPaginas }, (_, i) => (
+								<button
+									key={i}
+									className="btn btn-sm btn-outline-primary m-1"
+									onClick={() => mudarPagina(i + 1)}
+								>
+									{i + 1}
+								</button>
+							))}
+						</div>
 					</div>
 				</div>
 			</div>
