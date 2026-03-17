@@ -34,7 +34,7 @@ const PaginaVendas = () => {
 	
 	const criarVenda = async () => {
 		try {
-			await api("/vendas",{ itens });
+			await api.post("/vendas",{ itens });
 			
 			setItens([]);
 			await listarVendas();
