@@ -1,48 +1,50 @@
 import db from "../config/db.js";
 
-// =========================
-// CRIAR PAGAMENTO
-// =========================
+/* =========================
+   CRIAR PAGAMENTO
+========================= */
 export const criarPagamento = async (req, res) => {
 	try {
+		console.log("BODY:", req.body);
+		console.log("USER:", req.user);
 
-		const { nome_produto, forma_pagamento, parcelas, status_pagamento } = req.body;
+		if (!req.user || !req.user.id) {
+			return res.status(401).json({ erro: "Usuário não autenticado" });
+		}
 
-		if(!nome_produto || !forma_pagamento)
+		const { id_produto, forma_pagamento, parcelas } = req.body;
+
+		if (!id_produto || !forma_pagamento) {
 			return res.status(400).json({ erro: "Dados incompletos" });
+		}
 
-		// buscar produto
+		// 🔥 PRODUTO POR ID (corrigido)
 		const produtoResult = await db.query(
-			"SELECT id, nome, preco FROM produtos WHERE nome=$1",
-			[nome_produto]
+			"SELECT id, nome, preco FROM produtos WHERE id=$1",
+			[id_produto]
 		);
 
-		const produto = produtoResult.rows;
-
-		if(!produto.length)
+		if (!produtoResult.rows.length) {
 			return res.status(404).json({ erro: "Produto não encontrado" });
+		}
 
-		const id_produto = produto[0].id;
-		const valor = produto[0].preco;
+		const produto = produtoResult.rows[0];
+		const valor = Number(produto.preco);
 
-		// buscar venda
+		// 🔥 BUSCAR VENDA
 		const vendaResult = await db.query(
 			`SELECT v.id
 			 FROM vendas v
 			 JOIN itens_venda iv ON iv.id_venda = v.id
-			 WHERE iv.id_produto=$1
-			 AND v.id_usuario=$2
+			 WHERE iv.id_produto=$1 AND v.id_usuario=$2
 			 ORDER BY v.id DESC
 			 LIMIT 1`,
 			[id_produto, req.user.id]
 		);
 
-		const venda = vendaResult.rows;
-
 		let id_venda;
 
-		if(!venda.length){
-
+		if (!vendaResult.rows.length) {
 			const novaVenda = await db.query(
 				`INSERT INTO vendas (id_usuario, data_venda)
 				 VALUES($1, NOW())
@@ -53,82 +55,73 @@ export const criarPagamento = async (req, res) => {
 			id_venda = novaVenda.rows[0].id;
 
 			await db.query(
-				`INSERT INTO itens_venda
-				 (id_venda, id_produto, quantidade)
+				`INSERT INTO itens_venda (id_venda, id_produto, quantidade)
 				 VALUES($1,$2,$3)`,
 				[id_venda, id_produto, 1]
 			);
-
-		}else{
-
-			id_venda = venda[0].id;
-
+		} else {
+			id_venda = vendaResult.rows[0].id;
 		}
 
-		// forma pagamento
+		// 🔥 FORMA DE PAGAMENTO
 		const formaResult = await db.query(
 			"SELECT id FROM formas_pagamento WHERE nome=$1 AND ativo=true",
 			[forma_pagamento]
 		);
 
-		const forma = formaResult.rows;
-
-		if(!forma.length)
+		if (!formaResult.rows.length) {
 			return res.status(404).json({ erro: "Forma de pagamento inválida" });
+		}
 
-		const id_forma_pagamento = forma[0].id;
+		const id_forma_pagamento = formaResult.rows[0].id;
 
-		const result = await db.query(
+		// 🔥 INSERIR PAGAMENTO
+		const pagamentoResult = await db.query(
 			`INSERT INTO pagamentos
-			 (id_venda,id_forma_pagamento,valor,status,data_pagamento)
+			 (id_venda, id_forma_pagamento, valor, status, data_pagamento)
 			 VALUES($1,$2,$3,$4,NOW())
 			 RETURNING id`,
-			[id_venda,id_forma_pagamento,valor,status_pagamento || "pago"]
+			[id_venda, id_forma_pagamento, valor, "pago"]
 		);
 
-		const id_pagamento = result.rows[0].id;
+		const id_pagamento = pagamentoResult.rows[0].id;
 
-		// parcelas
-		if(parcelas && Array.isArray(parcelas)){
-
-			for(const p of parcelas){
-
+		// 🔥 PARCELAS
+		if (parcelas && Array.isArray(parcelas)) {
+			for (const p of parcelas) {
 				await db.query(
 					`INSERT INTO parcelas
-					 (id_pagamento,numero_parcela,valor,data_vencimento,status)
+					 (id_pagamento, numero_parcela, valor, data_vencimento, status)
 					 VALUES($1,$2,$3,$4,$5)`,
 					[
 						id_pagamento,
 						p.numero,
 						p.valor,
 						p.data_vencimento,
-						"pendente"
+						"pendente",
 					]
 				);
-
 			}
-
 		}
 
 		res.json({
-			msg:"Pagamento criado com sucesso",
-			id_pagamento
+			msg: "Pagamento criado com sucesso",
+			id_pagamento,
 		});
-
-	}catch(err){
-
-		console.error(err);
-		res.status(500).json({ erro:"Erro ao criar pagamento" });
-
+	} catch (err) {
+		console.error("ERRO REAL:", err);
+		res.status(500).json({ erro: err.message });
 	}
 };
 
-// =========================
-// LISTAR PAGAMENTOS
-// =========================
-export const listarPagamentosPorId = async (req,res) => {
-
-	try{
+/* =========================
+   LISTAR PAGAMENTOS
+========================= */
+export const listarPagamentosPorId = async (req, res) => {
+	try {
+		if (!req.user || !req.user.id) {
+			return res.status(401).json({ erro: "Não autenticado" });
+		}
 
 		const result = await db.query(
 			`SELECT
@@ -144,33 +137,28 @@ export const listarPagamentosPorId = async (req,res) => {
 			 JOIN produtos pr ON pr.id = iv.id_produto
 			 JOIN formas_pagamento f ON f.id = p.id_forma_pagamento
 			 WHERE v.id_usuario=$1
-			 GROUP BY p.id,pr.nome,f.nome
+			 GROUP BY p.id, pr.nome, f.nome
 			 ORDER BY p.id DESC`,
 			[req.user.id]
 		);
 
 		res.json(result.rows);
-
-	}catch(err){
-
+	} catch (err) {
 		console.error(err);
-		res.status(500).json({ erro:"Erro ao listar pagamentos" });
-
+		res.status(500).json({ erro: err.message });
 	}
-
 };
 
-// =========================
-// MARCAR COMO PAGO
-// =========================
-export const marcarComoPago = async (req,res) => {
-
-	try{
-
+/* =========================
+   MARCAR COMO PAGO
+========================= */
+export const marcarComoPago = async (req, res) => {
+	try {
 		const { id } = req.params;
 
-		if(!id)
-			return res.status(400).json({ erro:"ID inválido" });
+		if (!id) {
+			return res.status(400).json({ erro: "ID inválido" });
+		}
 
 		await db.query(
 			`UPDATE pagamentos
@@ -182,52 +170,42 @@ export const marcarComoPago = async (req,res) => {
 			[req.body.status || "pago", id, req.user.id]
 		);
 
-		res.json({ msg:"Pagamento atualizado para pago" });
-
-	}catch(err){
-
+		res.json({ msg: "Pagamento atualizado" });
+	} catch (err) {
 		console.error(err);
-		res.status(500).json({ erro:"Erro ao atualizar pagamento" });
-
+		res.status(500).json({ erro: err.message });
 	}
-
 };
 
-// =========================
-// ATUALIZAR PARCELA
-// =========================
-export const atualizarParcela = async (req,res) => {
-
-	try{
-
+/* =========================
+   ATUALIZAR PARCELA
+========================= */
+export const atualizarParcela = async (req, res) => {
+	try {
 		const { id } = req.params;
 		const { status } = req.body;
 
+		if (!id) {
+			return res.status(400).json({ erro: "ID inválido" });
+		}
+
 		await db.query(
-			`UPDATE parcelas
-			 SET status=$1
-			 WHERE id=$2`,
-			[status,id]
+			`UPDATE parcelas SET status=$1 WHERE id=$2`,
+			[status, id]
 		);
 
-		res.json({ msg:"Parcela atualizada" });
-
-	}catch(err){
-
+		res.json({ msg: "Parcela atualizada" });
+	} catch (err) {
 		console.error(err);
-		res.status(500).json({ erro:"Erro ao atualizar parcela" });
-
+		res.status(500).json({ erro: err.message });
 	}
-
 };
 
-// =========================
-// LISTAR PARCELAS
-// =========================
-export const listarParcelasPorPagamento = async (req,res) => {
-
-	try{
-
+/* =========================
+   LISTAR PARCELAS
+========================= */
+export const listarParcelasPorPagamento = async (req, res) => {
+	try {
 		const { id } = req.params;
 
 		const result = await db.query(
@@ -243,16 +221,12 @@ export const listarParcelasPorPagamento = async (req,res) => {
 			 WHERE pa.id_pagamento=$1
 			 AND v.id_usuario=$2
 			 ORDER BY pa.numero_parcela`,
-			[id,req.user.id]
+			[id, req.user.id]
 		);
 
 		res.json(result.rows);
-
-	}catch(err){
-
+	} catch (err) {
 		console.error(err);
-		res.status(500).json({ erro:"Erro ao buscar parcelas" });
-
+		res.status(500).json({ erro: err.message });
 	}
-
 };
