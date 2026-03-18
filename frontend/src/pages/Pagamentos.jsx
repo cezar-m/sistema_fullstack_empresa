@@ -30,22 +30,30 @@ export default function Pagamentos() {
   }, []);
 
   const carregar = async () => {
-    try {
-      const [p, f, pag] = await Promise.all([
-        api.get("/products"),
-        api.get("/formas-pagamento"),
-        api.get("/pagamentos"),
-      ]);
 
-      setProdutos(p.data || []);
-      setFormas(f.data || []);
-      setPagamentos(pag.data || []);
+  try {
+    const resProdutos = await api.get("/products");
+    setProdutos(resProdutos.data || []);
+  } catch (err) {
+    console.error("ERRO PRODUCTS:", err);
+  }
 
-    } catch (err) {
-      console.error(err);
-      setMensagem("Erro ao carregar");
-    }
-  };
+  try {
+    const resFormas = await api.get("/formas-pagamento");
+    setFormas(resFormas.data || []);
+  } catch (err) {
+    console.error("ERRO FORMAS:", err);
+  }
+
+  try {
+    const resPag = await api.get("/pagamentos");
+    setPagamentos(resPag.data || []);
+  } catch (err) {
+    console.error("ERRO PAGAMENTOS:", err);
+  }
+
+};
+
 
   /* =========================
      CALC VALOR
