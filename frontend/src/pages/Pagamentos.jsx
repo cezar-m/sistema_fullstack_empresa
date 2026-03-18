@@ -2,21 +2,6 @@ import { useState, useEffect } from "react";
 import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
-/* =========================
-   INTERCEPTOR (TOKEN)
-========================= */
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-
-  if (!config.headers) config.headers = {};
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
-});
-
 export default function Pagamentos() {
   const [produtos, setProdutos] = useState([]);
   const [formas, setFormas] = useState([]);
@@ -24,28 +9,16 @@ export default function Pagamentos() {
 
   const [produtoId, setProdutoId] = useState("");
   const [quantidade, setQuantidade] = useState(1);
-  const [valor, setValor] = useState("");
-  const [formaPagamento, setFormaPagamento] = useState("");
+  const [valor, setValor] = useState(0);
+  const [formaPagamentoId, setFormaPagamentoId] = useState("");
   const [qtdParcelas, setQtdParcelas] = useState(1);
   const [parcelas, setParcelas] = useState([]);
 
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [pagina, setPagina] = useState(1);
-  const registrosPorPagina = 10;
-
   /* =========================
-     ALERT AUTO SUMIR
-  ========================= */
-  useEffect(() => {
-    if (!mensagem) return;
-    const timer = setTimeout(() => setMensagem(""), 3000);
-    return () => clearTimeout(timer);
-  }, [mensagem]);
-
-  /* =========================
-     LISTAR DADOS
+     CARREGAR DADOS
   ========================= */
   useEffect(() => {
     const carregar = async () => {
@@ -58,9 +31,9 @@ export default function Pagamentos() {
           api.get("/pagamentos"),
         ]);
 
-        setProdutos(Array.isArray(prodRes.data) ? prodRes.data : []);
-        setFormas(Array.isArray(formaRes.data) ? formaRes.data : []);
-        setPagamentos(Array.isArray(pagRes.data) ? pagRes.data : []);
+        setProdutos(prodRes.data || []);
+        setFormas(formaRes.data || []);
+        setPagamentos(pagRes.data || []);
 
       } catch (err) {
         console.error(err);
@@ -77,46 +50,40 @@ export default function Pagamentos() {
      CALCULAR VALOR
   ========================= */
   useEffect(() => {
-    if (!produtoId) {
-      setValor("");
-      return;
-    }
-
-    const produto = produtos.find(p => Number(p.id) === Number(produtoId));
+    const produto = produtos.find(p => p.id == produtoId);
 
     if (produto) {
-      const total = Number(produto.preco || 0) * quantidade;
-      setValor(total);
+      setValor(Number(produto.preco) * Number(quantidade));
+    } else {
+      setValor(0);
     }
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS
+     GERAR PARCELAS (CORRIGIDO)
   ========================= */
   useEffect(() => {
-    const valorNumero = Number(valor);
-
-    if (!valorNumero || qtdParcelas <= 1) {
+    if (qtdParcelas <= 1 || valor <= 0) {
       setParcelas([]);
       return;
     }
 
-    const valorBase = Math.floor((valorNumero / qtdParcelas) * 100) / 100;
-    const resto = Number((valorNumero - valorBase * qtdParcelas).toFixed(2));
-
+    const valorBase = Number((valor / qtdParcelas).toFixed(2));
     const hoje = new Date();
 
-    const novas = Array.from({ length: qtdParcelas }, (_, i) => {
+    const novas = [];
+
+    for (let i = 0; i < qtdParcelas; i++) {
       const venc = new Date(hoje);
       venc.setMonth(hoje.getMonth() + i + 1);
 
-      return {
+      novas.push({
         numero: i + 1,
-        valor: i === qtdParcelas - 1 ? valorBase + resto : valorBase,
+        valor: valorBase,
         data_vencimento: venc.toISOString().split("T")[0],
-        status: "pendente",
-      };
-    });
+        status: "pendente"
+      });
+    }
 
     setParcelas(novas);
   }, [valor, qtdParcelas]);
@@ -125,8 +92,8 @@ export default function Pagamentos() {
      CRIAR PAGAMENTO (CORRIGIDO)
   ========================= */
   const criarPagamento = async () => {
-    if (!produtoId || !formaPagamento || !valor) {
-      setMensagem("Preencha todos os campos");
+    if (!produtoId || !formaPagamentoId) {
+      setMensagem("Preencha tudo");
       return;
     }
 
@@ -135,38 +102,38 @@ export default function Pagamentos() {
 
       const payload = {
         id_produto: Number(produtoId),
-        valor: Number(valor),
         quantidade: Number(quantidade),
-        forma_pagamento: formaPagamento,
-        parcelas: parcelas.length > 0 ? parcelas : [],
+        valor: Number(valor),
+        id_forma_pagamento: Number(formaPagamentoId),
+        parcelas: parcelas
       };
+
+      console.log("ENVIANDO:", payload);
 
       const res = await api.post("/pagamentos", payload);
 
-      setMensagem(res.data?.msg || "Pagamento criado com sucesso");
+      setMensagem("Pagamento criado com sucesso");
 
-      // Atualiza lista
+      // atualizar lista
       setPagamentos(prev => [
         {
-          id: res.data?.id_pagamento || Date.now(),
-          nome_produto:
-            produtos.find(p => p.id == produtoId)?.nome || "",
-          forma_pagamento: formaPagamento,
+          id: res.data.id_pagamento,
+          nome_produto: produtos.find(p => p.id == produtoId)?.nome,
+          forma_pagamento: formas.find(f => f.id == formaPagamentoId)?.nome,
           valor,
           status: "pago",
-          data_pagamento: new Date().toISOString(),
+          data_pagamento: new Date().toISOString()
         },
-        ...prev,
+        ...prev
       ]);
 
-      // Reset
+      // RESET LIMPO
       setProdutoId("");
-      setValor("");
-      setFormaPagamento("");
+      setFormaPagamentoId("");
       setQtdParcelas(1);
       setParcelas([]);
       setQuantidade(1);
-      setPagina(1);
+      setValor(0);
 
     } catch (err) {
       console.error(err);
@@ -180,22 +147,6 @@ export default function Pagamentos() {
     }
   };
 
-  /* =========================
-     PAGINAÇÃO
-  ========================= */
-  const totalPaginas = Math.max(
-    1,
-    Math.ceil(pagamentos.length / registrosPorPagina)
-  );
-
-  const pagamentosPagina = pagamentos.slice(
-    (pagina - 1) * registrosPorPagina,
-    pagina * registrosPorPagina
-  );
-
-  /* =========================
-     RENDER
-  ========================= */
   return (
     <DashboardLayout>
       <div className="container mt-4">
@@ -205,7 +156,6 @@ export default function Pagamentos() {
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
         {loading && <div className="alert alert-warning">Carregando...</div>}
 
-        {/* FORM */}
         <div className="card mb-3 shadow">
           <div className="card-body">
             <div className="row g-3">
@@ -232,7 +182,7 @@ export default function Pagamentos() {
                   type="number"
                   className="form-control"
                   value={quantidade}
-                  onChange={(e) => setQuantidade(Number(e.target.value))}
+                  onChange={(e) => setQuantidade(e.target.value)}
                 />
               </div>
 
@@ -242,7 +192,7 @@ export default function Pagamentos() {
                   type="number"
                   className="form-control"
                   value={valor}
-                  onChange={(e) => setValor(e.target.value)}
+                  readOnly
                 />
               </div>
 
@@ -250,12 +200,12 @@ export default function Pagamentos() {
                 <label>Forma</label>
                 <select
                   className="form-select"
-                  value={formaPagamento}
-                  onChange={(e) => setFormaPagamento(e.target.value)}
+                  value={formaPagamentoId}
+                  onChange={(e) => setFormaPagamentoId(e.target.value)}
                 >
                   <option value="">Selecione</option>
                   {formas.map(f => (
-                    <option key={f.id} value={f.nome}>
+                    <option key={f.id} value={f.id}>
                       {f.nome}
                     </option>
                   ))}
@@ -298,7 +248,7 @@ export default function Pagamentos() {
           </thead>
 
           <tbody>
-            {pagamentosPagina.map(p => (
+            {pagamentos.map(p => (
               <tr key={p.id}>
                 <td>{p.nome_produto}</td>
                 <td>{p.forma_pagamento}</td>
