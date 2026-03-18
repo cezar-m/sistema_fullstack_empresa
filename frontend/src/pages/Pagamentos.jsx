@@ -13,7 +13,6 @@ export default function Pagamentos() {
   const [valor, setValor] = useState(0);
   const [formaPagamentoId, setFormaPagamentoId] = useState("");
 
-  const [qtdParcelas, setQtdParcelas] = useState(1);
   const [parcelas, setParcelas] = useState([]);
   const [parcelasSelecionadas, setParcelasSelecionadas] = useState([]);
 
@@ -21,22 +20,10 @@ export default function Pagamentos() {
   const [loading, setLoading] = useState(false);
 
   const [editarPagamento, setEditarPagamento] = useState(null);
-  const [novoStatus, setNovoStatus] = useState("pendente");
+  const [novoStatus, setNovoStatus] = useState("pago");
 
   const [editarParcela, setEditarParcela] = useState(null);
   const [novoStatusParcela, setNovoStatusParcela] = useState("pendente");
-
-  const [pagina, setPagina] = useState(1);
-  const registrosPorPagina = 10;
-
-  /* =========================
-     ALERT AUTO SUMIR
-  ========================= */
-  useEffect(() => {
-    if (!mensagem) return;
-    const timer = setTimeout(() => setMensagem(""), 3000);
-    return () => clearTimeout(timer);
-  }, [mensagem]);
 
   /* =========================
      CARREGAR DADOS
@@ -46,19 +33,19 @@ export default function Pagamentos() {
       try {
         setLoading(true);
 
-        const [prodRes, formaRes, pagRes] = await Promise.all([
+        const [p1, p2, p3] = await Promise.all([
           api.get("/products/listar"),
           api.get("/formas-pagamento"),
-          api.get("/pagamentos"),
+          api.get("/pagamentos")
         ]);
 
-        setProdutos(prodRes.data || []);
-        setFormas(formaRes.data || []);
-        setPagamentos(pagRes.data || []);
+        setProdutos(p1.data || []);
+        setFormas(p2.data || []);
+        setPagamentos(p3.data || []);
 
       } catch (err) {
         console.error(err);
-        setMensagem("Erro ao carregar dados");
+        setMensagem("Erro ao carregar");
       } finally {
         setLoading(false);
       }
@@ -71,99 +58,52 @@ export default function Pagamentos() {
      CALCULAR VALOR
   ========================= */
   useEffect(() => {
-    const produto = produtos.find(p => Number(p.id) === Number(produtoId));
+    const produto = produtos.find(p => p.id == produtoId);
 
-    if (produto && quantidade > 0) {
-      const total = Number(produto.preco) * Number(quantidade);
-      setValor(Number(total.toFixed(2)));
+    if (produto) {
+      setValor(Number(produto.preco) * Number(quantidade));
     } else {
       setValor(0);
     }
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS
-  ========================= */
-  useEffect(() => {
-    if (qtdParcelas <= 1 || valor <= 0) {
-      setParcelas([]);
-      return;
-    }
-
-    const total = Number(valor);
-    const base = Math.floor((total / qtdParcelas) * 100) / 100;
-    const resto = Number((total - base * qtdParcelas).toFixed(2));
-
-    const hoje = new Date();
-    const novas = [];
-
-    for (let i = 0; i < qtdParcelas; i++) {
-      const venc = new Date(hoje);
-      venc.setMonth(hoje.getMonth() + i + 1);
-
-      novas.push({
-        numero: i + 1,
-        valor: i === qtdParcelas - 1 ? base + resto : base,
-        data_vencimento: venc.toISOString().split("T")[0],
-        status: "pendente"
-      });
-    }
-
-    setParcelas(novas);
-  }, [valor, qtdParcelas]);
-
-  /* =========================
      CRIAR PAGAMENTO
   ========================= */
   const criarPagamento = async () => {
-    if (!produtoId || !formaPagamentoId) {
-      setMensagem("Preencha todos os campos");
-      return;
-    }
-
     try {
-      setLoading(true);
+      if (!produtoId || !formaPagamentoId) {
+        setMensagem("Preencha os campos");
+        return;
+      }
 
       const payload = {
         id_produto: Number(produtoId),
         quantidade: Number(quantidade),
-        valor: Number(valor),
         id_forma_pagamento: Number(formaPagamentoId),
         parcelas: parcelas
       };
 
-      console.log("PAYLOAD:", payload);
+      console.log("ENVIANDO:", payload);
 
-      const res = await api.post("/pagamentos", payload);
+      await api.post("/pagamentos", payload);
 
-      setMensagem("Pagamento criado com sucesso");
+      setMensagem("Pagamento criado");
 
-      setPagamentos(prev => [
-        {
-          id: res.data.id_pagamento,
-          nome_produto: produtos.find(p => p.id == produtoId)?.nome,
-          forma_pagamento: formas.find(f => f.id == formaPagamentoId)?.nome,
-          valor,
-          status: "pago",
-          data_pagamento: new Date().toISOString()
-        },
-        ...prev
-      ]);
+      // recarrega lista
+      const res = await api.get("/pagamentos");
+      setPagamentos(res.data);
 
-      // RESET
+      // reset
       setProdutoId("");
       setQuantidade(1);
       setValor(0);
       setFormaPagamentoId("");
-      setQtdParcelas(1);
       setParcelas([]);
-      setPagina(1);
 
     } catch (err) {
       console.error(err);
-      setMensagem(err.response?.data?.erro || "Erro ao criar pagamento");
-    } finally {
-      setLoading(false);
+      setMensagem(err.response?.data?.erro || "Erro");
     }
   };
 
@@ -181,7 +121,7 @@ export default function Pagamentos() {
   };
 
   /* =========================
-     ATUALIZAR PAGAMENTO
+     EDITAR PAGAMENTO
   ========================= */
   const salvarEdicao = async () => {
     try {
@@ -191,20 +131,22 @@ export default function Pagamentos() {
 
       setPagamentos(prev =>
         prev.map(p =>
-          p.id === editarPagamento.id ? { ...p, status: novoStatus } : p
+          p.id === editarPagamento.id
+            ? { ...p, status: novoStatus }
+            : p
         )
       );
 
       setEditarPagamento(null);
-      setMensagem("Pagamento atualizado");
+      setMensagem("Atualizado");
     } catch (err) {
       console.error(err);
-      setMensagem("Erro ao atualizar pagamento");
+      setMensagem("Erro ao editar");
     }
   };
 
   /* =========================
-     ATUALIZAR PARCELA
+     EDITAR PARCELA
   ========================= */
   const salvarParcela = async () => {
     try {
@@ -224,19 +166,9 @@ export default function Pagamentos() {
       setMensagem("Parcela atualizada");
     } catch (err) {
       console.error(err);
-      setMensagem("Erro ao atualizar parcela");
+      setMensagem("Erro parcela");
     }
   };
-
-  /* =========================
-     PAGINAÇÃO
-  ========================= */
-  const totalPaginas = Math.max(1, Math.ceil(pagamentos.length / registrosPorPagina));
-
-  const pagamentosPagina = pagamentos.slice(
-    (pagina - 1) * registrosPorPagina,
-    pagina * registrosPorPagina
-  );
 
   return (
     <DashboardLayout>
@@ -248,28 +180,26 @@ export default function Pagamentos() {
         {loading && <div className="alert alert-warning">Carregando...</div>}
 
         {/* FORM */}
-        <div className="card shadow mb-3">
+        <div className="card mb-3">
           <div className="card-body">
-            <div className="row g-3">
+            <div className="row g-2">
 
               <div className="col-md-3">
-                <label>Produto</label>
                 <select
                   className="form-select"
                   value={produtoId}
-                  onChange={(e) => setProdutoId(e.target.value)}
+                  onChange={(e) => setProdutoId(Number(e.target.value))}
                 >
-                  <option value="">Selecione</option>
+                  <option value="">Produto</option>
                   {produtos.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.nome} - R$ {p.preco}
+                      {p.nome}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="col-md-2">
-                <label>Qtd</label>
                 <input
                   type="number"
                   className="form-control"
@@ -279,7 +209,6 @@ export default function Pagamentos() {
               </div>
 
               <div className="col-md-2">
-                <label>Valor</label>
                 <input
                   type="number"
                   className="form-control"
@@ -289,29 +218,18 @@ export default function Pagamentos() {
               </div>
 
               <div className="col-md-3">
-                <label>Forma</label>
                 <select
                   className="form-select"
                   value={formaPagamentoId}
-                  onChange={(e) => setFormaPagamentoId(e.target.value)}
+                  onChange={(e) => setFormaPagamentoId(Number(e.target.value))}
                 >
-                  <option value="">Selecione</option>
+                  <option value="">Forma</option>
                   {formas.map(f => (
                     <option key={f.id} value={f.id}>
                       {f.nome}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="col-md-2">
-                <label>Parcelas</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={qtdParcelas}
-                  onChange={(e) => setQtdParcelas(Number(e.target.value))}
-                />
               </div>
 
               <div className="col-md-2">
@@ -335,35 +253,104 @@ export default function Pagamentos() {
               <th>Forma</th>
               <th>Valor</th>
               <th>Status</th>
-              <th>Data</th>
               <th>Ações</th>
             </tr>
           </thead>
 
           <tbody>
-            {pagamentosPagina.map(p => (
+            {pagamentos.map(p => (
               <tr key={p.id}>
                 <td>{p.nome_produto}</td>
                 <td>{p.forma_pagamento}</td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
                 <td>{p.status}</td>
                 <td>
-                  {p.data_pagamento
-                    ? new Date(p.data_pagamento).toLocaleDateString()
-                    : "-"}
-                </td>
-                <td>
-                  <button className="btn btn-info btn-sm me-2" onClick={() => verParcelas(p)}>
+
+                  {/* VER PARCELAS */}
+                  <button
+                    className="btn btn-info btn-sm me-2"
+                    onClick={() => verParcelas(p)}
+                  >
                     Parcelas
                   </button>
-                  <button className="btn btn-primary btn-sm" onClick={() => setEditarPagamento(p)}>
+
+                  {/* EDITAR PAGAMENTO */}
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setEditarPagamento(p)}
+                  >
                     Editar
                   </button>
+
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {/* EDITAR PAGAMENTO */}
+        {editarPagamento && (
+          <div className="card p-3 mt-3">
+            <h5>Editar Pagamento</h5>
+
+            <select
+              className="form-select mb-2"
+              value={novoStatus}
+              onChange={(e) => setNovoStatus(e.target.value)}
+            >
+              <option value="pago">Pago</option>
+              <option value="pendente">Pendente</option>
+            </select>
+
+            <button className="btn btn-success" onClick={salvarEdicao}>
+              Salvar
+            </button>
+          </div>
+        )}
+
+        {/* LISTAR PARCELAS */}
+        {parcelasSelecionadas.length > 0 && (
+          <div className="card mt-3 p-3">
+            <h5>Parcelas</h5>
+
+            {parcelasSelecionadas.map(p => (
+              <div key={p.id} className="d-flex justify-content-between mb-2">
+
+                <span>
+                  {p.numero_parcela} - R$ {p.valor} - {p.status}
+                </span>
+
+                <button
+                  className="btn btn-warning btn-sm"
+                  onClick={() => setEditarParcela(p)}
+                >
+                  Editar
+                </button>
+
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* EDITAR PARCELA */}
+        {editarParcela && (
+          <div className="card p-3 mt-3">
+            <h5>Editar Parcela</h5>
+
+            <select
+              className="form-select mb-2"
+              value={novoStatusParcela}
+              onChange={(e) => setNovoStatusParcela(e.target.value)}
+            >
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+            </select>
+
+            <button className="btn btn-success" onClick={salvarParcela}>
+              Salvar
+            </button>
+          </div>
+        )}
 
       </div>
     </DashboardLayout>
