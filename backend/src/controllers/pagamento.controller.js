@@ -1,35 +1,32 @@
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR PAGAMENTO (FINAL)
+   CRIAR PAGAMENTO (CORRIGIDO REAL)
 ========================= */
 export const criarPagamento = async (req, res) => {
   try {
     console.log("BODY:", req.body);
 
-    if (!req.user?.id) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({ erro: "Usuário não autenticado" });
     }
 
-    let {
-      id_produto,
-      quantidade,
-      id_forma_pagamento,
-      parcelas
-    } = req.body;
+    let { id_produto, quantidade, id_forma_pagamento, parcelas } = req.body;
 
-    // NORMALIZAÇÃO
-    id_produto = Number(id_produto);
-    quantidade = Number(quantidade || 1);
-    id_forma_pagamento = Number(id_forma_pagamento);
+    /* =========================
+       NORMALIZAÇÃO SEGURA
+    ========================= */
+    id_produto = parseInt(id_produto);
+    id_forma_pagamento = parseInt(id_forma_pagamento);
+    quantidade = parseInt(quantidade) || 1;
     parcelas = Array.isArray(parcelas) ? parcelas : [];
 
     /* =========================
-       VALIDAÇÃO FORTE
+       VALIDAÇÃO CORRETA (SEM BUG)
     ========================= */
-    if (!id_produto || !id_forma_pagamento) {
+    if (isNaN(id_produto) || isNaN(id_forma_pagamento)) {
       return res.status(400).json({
-        erro: "id_produto e id_forma_pagamento são obrigatórios"
+        erro: "id_produto ou id_forma_pagamento inválido"
       });
     }
 
@@ -40,31 +37,35 @@ export const criarPagamento = async (req, res) => {
     }
 
     /* =========================
-       BUSCAR PRODUTO
+       PRODUTO
     ========================= */
     const produtoResult = await db.query(
       "SELECT id, nome, preco FROM produtos WHERE id=$1",
       [id_produto]
     );
 
-    if (!produtoResult.rows.length) {
+    if (produtoResult.rows.length === 0) {
       return res.status(404).json({ erro: "Produto não encontrado" });
     }
 
     const produto = produtoResult.rows[0];
     const valor = Number(produto.preco) * quantidade;
 
+    if (isNaN(valor)) {
+      return res.status(400).json({ erro: "Erro ao calcular valor" });
+    }
+
     /* =========================
-       BUSCAR FORMA PAGAMENTO
+       FORMA PAGAMENTO
     ========================= */
     const formaResult = await db.query(
-      "SELECT id, nome FROM formas_pagamento WHERE id=$1 AND ativo=true",
+      "SELECT id FROM formas_pagamento WHERE id=$1 AND ativo=true",
       [id_forma_pagamento]
     );
 
-    if (!formaResult.rows.length) {
-      return res.status(404).json({
-        erro: "Forma de pagamento inválida"
+    if (formaResult.rows.length === 0) {
+      return res.status(400).json({
+        erro: "Forma de pagamento inválida ou inativa"
       });
     }
 
@@ -100,11 +101,18 @@ export const criarPagamento = async (req, res) => {
     const id_pagamento = pagamento.rows[0].id;
 
     /* =========================
-       CRIAR PARCELAS
+       PARCELAS (OPCIONAL)
     ========================= */
     if (parcelas.length > 0) {
       for (const p of parcelas) {
-        if (!p.numero || p.valor == null || !p.data_vencimento) continue;
+        const numero = parseInt(p.numero);
+        const valorParcela = Number(p.valor);
+        const data = p.data_vencimento;
+
+        if (isNaN(numero) || isNaN(valorParcela) || !data) {
+          console.log("Parcela ignorada:", p);
+          continue;
+        }
 
         await db.query(
           `INSERT INTO parcelas
@@ -112,24 +120,25 @@ export const criarPagamento = async (req, res) => {
            VALUES ($1, $2, $3, $4, $5)`,
           [
             id_pagamento,
-            Number(p.numero),
-            Number(p.valor),
-            p.data_vencimento,
+            numero,
+            valorParcela,
+            data,
             p.status || "pendente"
           ]
         );
       }
     }
 
-    return res.json({
-      msg: "Pagamento criado",
+    return res.status(201).json({
+      msg: "Pagamento criado com sucesso",
       id_pagamento
     });
 
   } catch (err) {
-    console.error("ERRO:", err);
+    console.error("ERRO REAL:", err);
+
     return res.status(500).json({
-      erro: "Erro interno",
+      erro: "Erro interno no servidor",
       detalhe: err.message
     });
   }
