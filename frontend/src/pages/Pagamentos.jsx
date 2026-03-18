@@ -3,6 +3,7 @@ import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function Pagamentos() {
+
   const [produtos, setProdutos] = useState([]);
   const [formas, setFormas] = useState([]);
   const [pagamentos, setPagamentos] = useState([]);
@@ -11,11 +12,31 @@ export default function Pagamentos() {
   const [quantidade, setQuantidade] = useState(1);
   const [valor, setValor] = useState(0);
   const [formaPagamentoId, setFormaPagamentoId] = useState("");
+
   const [qtdParcelas, setQtdParcelas] = useState(1);
   const [parcelas, setParcelas] = useState([]);
+  const [parcelasSelecionadas, setParcelasSelecionadas] = useState([]);
 
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [editarPagamento, setEditarPagamento] = useState(null);
+  const [novoStatus, setNovoStatus] = useState("pendente");
+
+  const [editarParcela, setEditarParcela] = useState(null);
+  const [novoStatusParcela, setNovoStatusParcela] = useState("pendente");
+
+  const [pagina, setPagina] = useState(1);
+  const registrosPorPagina = 10;
+
+  /* =========================
+     ALERT AUTO SUMIR
+  ========================= */
+  useEffect(() => {
+    if (!mensagem) return;
+    const timer = setTimeout(() => setMensagem(""), 3000);
+    return () => clearTimeout(timer);
+  }, [mensagem]);
 
   /* =========================
      CARREGAR DADOS
@@ -50,17 +71,18 @@ export default function Pagamentos() {
      CALCULAR VALOR
   ========================= */
   useEffect(() => {
-    const produto = produtos.find(p => p.id == produtoId);
+    const produto = produtos.find(p => Number(p.id) === Number(produtoId));
 
-    if (produto) {
-      setValor(Number(produto.preco) * Number(quantidade));
+    if (produto && quantidade > 0) {
+      const total = Number(produto.preco) * Number(quantidade);
+      setValor(Number(total.toFixed(2)));
     } else {
       setValor(0);
     }
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS (CORRIGIDO)
+     GERAR PARCELAS
   ========================= */
   useEffect(() => {
     if (qtdParcelas <= 1 || valor <= 0) {
@@ -68,9 +90,11 @@ export default function Pagamentos() {
       return;
     }
 
-    const valorBase = Number((valor / qtdParcelas).toFixed(2));
-    const hoje = new Date();
+    const total = Number(valor);
+    const base = Math.floor((total / qtdParcelas) * 100) / 100;
+    const resto = Number((total - base * qtdParcelas).toFixed(2));
 
+    const hoje = new Date();
     const novas = [];
 
     for (let i = 0; i < qtdParcelas; i++) {
@@ -79,7 +103,7 @@ export default function Pagamentos() {
 
       novas.push({
         numero: i + 1,
-        valor: valorBase,
+        valor: i === qtdParcelas - 1 ? base + resto : base,
         data_vencimento: venc.toISOString().split("T")[0],
         status: "pendente"
       });
@@ -89,11 +113,11 @@ export default function Pagamentos() {
   }, [valor, qtdParcelas]);
 
   /* =========================
-     CRIAR PAGAMENTO (CORRIGIDO)
+     CRIAR PAGAMENTO
   ========================= */
   const criarPagamento = async () => {
     if (!produtoId || !formaPagamentoId) {
-      setMensagem("Preencha tudo");
+      setMensagem("Preencha todos os campos");
       return;
     }
 
@@ -108,13 +132,12 @@ export default function Pagamentos() {
         parcelas: parcelas
       };
 
-      console.log("ENVIANDO:", payload);
+      console.log("PAYLOAD:", payload);
 
       const res = await api.post("/pagamentos", payload);
 
       setMensagem("Pagamento criado com sucesso");
 
-      // atualizar lista
       setPagamentos(prev => [
         {
           id: res.data.id_pagamento,
@@ -127,25 +150,93 @@ export default function Pagamentos() {
         ...prev
       ]);
 
-      // RESET LIMPO
+      // RESET
       setProdutoId("");
+      setQuantidade(1);
+      setValor(0);
       setFormaPagamentoId("");
       setQtdParcelas(1);
       setParcelas([]);
-      setQuantidade(1);
-      setValor(0);
+      setPagina(1);
 
     } catch (err) {
       console.error(err);
-      console.log(err.response?.data);
-
-      setMensagem(
-        err.response?.data?.erro || "Erro ao criar pagamento"
-      );
+      setMensagem(err.response?.data?.erro || "Erro ao criar pagamento");
     } finally {
       setLoading(false);
     }
   };
+
+  /* =========================
+     VER PARCELAS
+  ========================= */
+  const verParcelas = async (p) => {
+    try {
+      const res = await api.get(`/pagamentos/${p.id}/parcelas`);
+      setParcelasSelecionadas(res.data || []);
+    } catch (err) {
+      console.error(err);
+      setParcelasSelecionadas([]);
+    }
+  };
+
+  /* =========================
+     ATUALIZAR PAGAMENTO
+  ========================= */
+  const salvarEdicao = async () => {
+    try {
+      await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
+        status: novoStatus
+      });
+
+      setPagamentos(prev =>
+        prev.map(p =>
+          p.id === editarPagamento.id ? { ...p, status: novoStatus } : p
+        )
+      );
+
+      setEditarPagamento(null);
+      setMensagem("Pagamento atualizado");
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao atualizar pagamento");
+    }
+  };
+
+  /* =========================
+     ATUALIZAR PARCELA
+  ========================= */
+  const salvarParcela = async () => {
+    try {
+      await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
+        status: novoStatusParcela
+      });
+
+      setParcelasSelecionadas(prev =>
+        prev.map(p =>
+          p.id === editarParcela.id
+            ? { ...p, status: novoStatusParcela }
+            : p
+        )
+      );
+
+      setEditarParcela(null);
+      setMensagem("Parcela atualizada");
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao atualizar parcela");
+    }
+  };
+
+  /* =========================
+     PAGINAÇÃO
+  ========================= */
+  const totalPaginas = Math.max(1, Math.ceil(pagamentos.length / registrosPorPagina));
+
+  const pagamentosPagina = pagamentos.slice(
+    (pagina - 1) * registrosPorPagina,
+    pagina * registrosPorPagina
+  );
 
   return (
     <DashboardLayout>
@@ -156,7 +247,8 @@ export default function Pagamentos() {
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
         {loading && <div className="alert alert-warning">Carregando...</div>}
 
-        <div className="card mb-3 shadow">
+        {/* FORM */}
+        <div className="card shadow mb-3">
           <div className="card-body">
             <div className="row g-3">
 
@@ -182,7 +274,7 @@ export default function Pagamentos() {
                   type="number"
                   className="form-control"
                   value={quantidade}
-                  onChange={(e) => setQuantidade(e.target.value)}
+                  onChange={(e) => setQuantidade(Number(e.target.value))}
                 />
               </div>
 
@@ -244,11 +336,12 @@ export default function Pagamentos() {
               <th>Valor</th>
               <th>Status</th>
               <th>Data</th>
+              <th>Ações</th>
             </tr>
           </thead>
 
           <tbody>
-            {pagamentos.map(p => (
+            {pagamentosPagina.map(p => (
               <tr key={p.id}>
                 <td>{p.nome_produto}</td>
                 <td>{p.forma_pagamento}</td>
@@ -258,6 +351,14 @@ export default function Pagamentos() {
                   {p.data_pagamento
                     ? new Date(p.data_pagamento).toLocaleDateString()
                     : "-"}
+                </td>
+                <td>
+                  <button className="btn btn-info btn-sm me-2" onClick={() => verParcelas(p)}>
+                    Parcelas
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={() => setEditarPagamento(p)}>
+                    Editar
+                  </button>
                 </td>
               </tr>
             ))}
