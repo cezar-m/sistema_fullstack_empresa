@@ -11,23 +11,19 @@ export default function Pagamentos() {
   const [produtoId, setProdutoId] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("");
   const [quantidade, setQuantidade] = useState(1);
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState(0);
 
   const [qtdParcelas, setQtdParcelas] = useState(1);
   const [parcelas, setParcelas] = useState([]);
-  const [parcelasSelecionadas, setParcelasSelecionadas] = useState([]);
 
   const [editarPagamento, setEditarPagamento] = useState(null);
   const [novoStatus, setNovoStatus] = useState("pendente");
-
-  const [editarParcela, setEditarParcela] = useState(null);
-  const [novoStatusParcela, setNovoStatusParcela] = useState("pendente");
 
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
   /* =========================
-     CARREGAR DADOS
+     LOAD
   ========================= */
   useEffect(() => {
     carregar();
@@ -47,45 +43,50 @@ export default function Pagamentos() {
 
     } catch (err) {
       console.error(err);
-      setMensagem("Erro ao carregar dados");
+      setMensagem("Erro ao carregar");
     }
   };
 
   /* =========================
-     CALCULAR VALOR
+     CALC VALOR
   ========================= */
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
     if (produto) {
       setValor(Number(produto.preco) * quantidade);
+    } else {
+      setValor(0);
     }
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS
+     GERAR PARCELAS (CORRIGIDO)
   ========================= */
   useEffect(() => {
+
     if (!valor || qtdParcelas <= 1) {
       setParcelas([]);
       return;
     }
 
-    const base = Math.floor((valor / qtdParcelas) * 100) / 100;
-    const resto = Number((valor - base * qtdParcelas).toFixed(2));
+    const valorNum = Number(valor);
+    const base = Number((valorNum / qtdParcelas).toFixed(2));
 
     const hoje = new Date();
 
-    const lista = Array.from({ length: qtdParcelas }, (_, i) => {
-      const venc = new Date(hoje);
+    const lista = [];
+
+    for (let i = 0; i < qtdParcelas; i++) {
+      const venc = new Date();
       venc.setMonth(hoje.getMonth() + i + 1);
 
-      return {
+      lista.push({
         numero: i + 1,
-        valor: i === qtdParcelas - 1 ? base + resto : base,
+        valor: base,
         data_vencimento: venc.toISOString().split("T")[0],
-        status: "pendente",
-      };
-    });
+        status: "pendente"
+      });
+    }
 
     setParcelas(lista);
 
@@ -95,25 +96,32 @@ export default function Pagamentos() {
      CRIAR
   ========================= */
   const criarPagamento = async () => {
+
+    if (!produtoId || !formaPagamento) {
+      return setMensagem("Dados incompletos");
+    }
+
     try {
       setLoading(true);
 
       await api.post("/pagamentos", {
-        id_produto: produtoId,
-        quantidade,
-        id_forma_pagamento: formaPagamento,
-        parcelas,
+        id_produto: Number(produtoId),
+        quantidade: Number(quantidade),
+        id_forma_pagamento: Number(formaPagamento),
+        parcelas: parcelas.length ? parcelas : []
       });
 
       setMensagem("Criado com sucesso");
-      carregar();
 
+      // RESET
       setProdutoId("");
       setFormaPagamento("");
       setQuantidade(1);
-      setValor("");
+      setValor(0);
       setQtdParcelas(1);
       setParcelas([]);
+
+      carregar();
 
     } catch (err) {
       console.error(err);
@@ -127,32 +135,18 @@ export default function Pagamentos() {
      EDITAR PAGAMENTO
   ========================= */
   const salvarEdicao = async () => {
-    await api.put(`/pagamentos/${editarPagamento.id}`, {
-      status: novoStatus,
-    });
+    try {
+      await api.put(`/pagamentos/${editarPagamento.id}`, {
+        status: novoStatus,
+      });
 
-    setEditarPagamento(null);
-    carregar();
-  };
+      setEditarPagamento(null);
+      carregar();
 
-  /* =========================
-     VER PARCELAS
-  ========================= */
-  const verParcelas = async (p) => {
-    const res = await api.get(`/pagamentos/${p.id}/parcelas`);
-    setParcelasSelecionadas(res.data);
-  };
-
-  /* =========================
-     EDITAR PARCELA
-  ========================= */
-  const salvarParcela = async () => {
-    await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
-      status: novoStatusParcela,
-    });
-
-    setEditarParcela(null);
-    verParcelas({ id: editarParcela.id_pagamento });
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao editar");
+    }
   };
 
   return (
@@ -162,7 +156,9 @@ export default function Pagamentos() {
 
         <h3>Pagamentos</h3>
 
-        {mensagem && <div className="alert alert-info">{mensagem}</div>}
+        {mensagem && (
+          <div className="alert alert-info">{mensagem}</div>
+        )}
 
         {/* FORM */}
         <div className="card p-3 mb-3">
@@ -170,8 +166,10 @@ export default function Pagamentos() {
           <div className="row g-2">
 
             <div className="col-md-3">
-              <select className="form-select" value={produtoId}
-                onChange={(e) => setProdutoId(e.target.value)}>
+              <select className="form-select"
+                value={produtoId}
+                onChange={(e) => setProdutoId(e.target.value)}
+              >
                 <option value="">Produto</option>
                 {produtos.map(p => (
                   <option key={p.id} value={p.id}>
@@ -182,9 +180,10 @@ export default function Pagamentos() {
             </div>
 
             <div className="col-md-2">
-              <input type="number" className="form-control"
+              <input type="number"
+                className="form-control"
                 value={quantidade}
-                onChange={(e) => setQuantidade(Number(e.target.value))}
+                onChange={(e) => setQuantidade(e.target.value)}
               />
             </div>
 
@@ -193,8 +192,10 @@ export default function Pagamentos() {
             </div>
 
             <div className="col-md-3">
-              <select className="form-select" value={formaPagamento}
-                onChange={(e) => setFormaPagamento(e.target.value)}>
+              <select className="form-select"
+                value={formaPagamento}
+                onChange={(e) => setFormaPagamento(e.target.value)}
+              >
                 <option value="">Forma</option>
                 {formas.map(f => (
                   <option key={f.id} value={f.id}>{f.nome}</option>
@@ -203,7 +204,8 @@ export default function Pagamentos() {
             </div>
 
             <div className="col-md-2">
-              <input type="number" className="form-control"
+              <input type="number"
+                className="form-control"
                 value={qtdParcelas}
                 onChange={(e) => setQtdParcelas(Number(e.target.value))}
               />
@@ -211,8 +213,24 @@ export default function Pagamentos() {
 
           </div>
 
-          <button className="btn btn-success mt-3" onClick={criarPagamento}>
-            Salvar
+          {/* PARCELAS VISUAL */}
+          {parcelas.length > 0 && (
+            <div className="mt-3">
+              <strong>Parcelas:</strong>
+              {parcelas.map(p => (
+                <div key={p.numero}>
+                  {p.numero} - R$ {p.valor} - {p.data_vencimento}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            className="btn btn-success mt-3"
+            onClick={criarPagamento}
+            disabled={loading}
+          >
+            {loading ? "Salvando..." : "Salvar"}
           </button>
 
         </div>
@@ -236,16 +254,13 @@ export default function Pagamentos() {
                 <td>{p.status}</td>
 
                 <td>
-                  <button className="btn btn-info btn-sm me-2"
-                    onClick={() => verParcelas(p)}>
-                    Parcelas
-                  </button>
-
-                  <button className="btn btn-primary btn-sm"
+                  <button
+                    className="btn btn-primary btn-sm"
                     onClick={() => {
                       setEditarPagamento(p);
                       setNovoStatus(p.status);
-                    }}>
+                    }}
+                  >
                     Editar
                   </button>
                 </td>
@@ -254,16 +269,25 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* MODAL */}
+        {/* MODAL CORRIGIDO */}
         {editarPagamento && (
-          <div className="modal show d-block" style={{ background: "#00000080" }}>
+          <div className="modal fade show d-block" tabIndex="-1">
             <div className="modal-dialog">
               <div className="modal-content">
 
+                <div className="modal-header">
+                  <h5 className="modal-title">Editar Status</h5>
+                  <button className="btn-close"
+                    onClick={() => setEditarPagamento(null)}
+                  />
+                </div>
+
                 <div className="modal-body">
-                  <select className="form-select"
+                  <select
+                    className="form-select"
                     value={novoStatus}
-                    onChange={(e) => setNovoStatus(e.target.value)}>
+                    onChange={(e) => setNovoStatus(e.target.value)}
+                  >
                     <option value="pendente">Pendente</option>
                     <option value="pago">Pago</option>
                     <option value="cancelado">Cancelado</option>
@@ -271,12 +295,17 @@ export default function Pagamentos() {
                 </div>
 
                 <div className="modal-footer">
-                  <button className="btn btn-secondary"
-                    onClick={() => setEditarPagamento(null)}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setEditarPagamento(null)}
+                  >
                     Fechar
                   </button>
 
-                  <button className="btn btn-primary" onClick={salvarEdicao}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={salvarEdicao}
+                  >
                     Salvar
                   </button>
                 </div>
