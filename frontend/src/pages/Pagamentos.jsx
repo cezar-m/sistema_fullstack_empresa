@@ -1,154 +1,290 @@
 import { useState, useEffect } from "react";
+import Navbar from "../components/Navbar";
 import api from "../api/api";
 
 export default function Pagamentos() {
 
+  const [pagamentos, setPagamentos] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [formas, setFormas] = useState([]);
-  const [pagamentos, setPagamentos] = useState([]);
 
-  const [produtoId, setProdutoId] = useState("");
-  const [formaId, setFormaId] = useState("");
+  const [idProduto, setIdProduto] = useState("");
+  const [idForma, setIdForma] = useState("");
   const [quantidade, setQuantidade] = useState(1);
 
   const [parcelas, setParcelas] = useState([]);
-  const [qtdParcelas, setQtdParcelas] = useState(0);
+  const [qtdParcelas, setQtdParcelas] = useState("");
 
-  const [editar, setEditar] = useState(null);
-  const [status, setStatus] = useState("pendente");
+  const [editarPagamento, setEditarPagamento] = useState(null);
+  const [novoStatus, setNovoStatus] = useState("pendente");
 
-  /* ========================= */
+  const [erro, setErro] = useState("");
+
+  /* =========================
+     CARREGAR DADOS
+  ========================= */
   useEffect(() => {
-    carregar();
+    carregarDados();
   }, []);
 
-  const carregar = async () => {
-    const [p, f, pag] = await Promise.all([
-      api.get("/products/listar"),
-      api.get("/formas-pagamento"),
-      api.get("/pagamentos")
-    ]);
+  const carregarDados = async () => {
+    try {
+      const [pag, prod, form] = await Promise.all([
+        api.get("/pagamentos"),
+        api.get("/produtos"),
+        api.get("/formas-pagamento")
+      ]);
 
-    setProdutos(p.data);
-    setFormas(f.data);
-    setPagamentos(pag.data);
+      setPagamentos(pag.data);
+      setProdutos(prod.data);
+      setFormas(form.data);
+
+    } catch (err) {
+      console.error(err);
+      setErro("Erro ao carregar dados");
+    }
   };
 
-  /* ========================= */
+  /* =========================
+     GERAR PARCELAS
+  ========================= */
   const gerarParcelas = (qtd) => {
     const lista = [];
+
     for (let i = 1; i <= qtd; i++) {
-      lista.push({ numero: i, valor: "", data_vencimento: "" });
+      lista.push({
+        numero: i,
+        valor: "",
+        data_vencimento: ""
+      });
     }
+
     setParcelas(lista);
   };
 
-  /* ========================= */
-  const salvar = async () => {
-    await api.post("/pagamentos", {
-      id_produto: produtoId,
-      quantidade,
-      id_forma_pagamento: formaId,
-      parcelas
-    });
+  /* =========================
+     CRIAR PAGAMENTO
+  ========================= */
+  const criarPagamento = async () => {
+    try {
 
-    setParcelas([]);
-    setQtdParcelas(0);
-    carregar();
+      setErro("");
+
+      await api.post("/pagamentos", {
+        id_produto: idProduto,
+        quantidade,
+        id_forma_pagamento: idForma,
+        parcelas
+      });
+
+      // reset
+      setParcelas([]);
+      setQtdParcelas("");
+      setIdProduto("");
+      setIdForma("");
+      setQuantidade(1);
+
+      carregarDados();
+
+    } catch (err) {
+      console.error(err);
+      setErro(err.response?.data?.erro || "Erro ao salvar");
+    }
   };
 
-  /* ========================= */
-  const atualizar = async () => {
-    await api.put(`/pagamentos/${editar.id}`, { status });
-    setEditar(null);
-    carregar();
+  /* =========================
+     ATUALIZAR STATUS
+  ========================= */
+  const atualizarStatus = async () => {
+    try {
+
+      await api.put(`/pagamentos/${editarPagamento.id}`, {
+        status: novoStatus
+      });
+
+      setEditarPagamento(null);
+      carregarDados();
+
+    } catch (err) {
+      console.error(err);
+      setErro("Erro ao atualizar");
+    }
   };
 
   return (
-    <div className="container mt-4">
+    <>
+      <Navbar />
 
-      <h3>Pagamentos</h3>
+      <div className="container mt-4">
 
-      {/* FORM */}
-      <div className="row mb-3">
+        <h3>Pagamentos</h3>
 
-        <select onChange={(e)=>setProdutoId(e.target.value)}>
-          <option>Produto</option>
-          {produtos.map(p => (
-            <option key={p.id} value={p.id}>{p.nome}</option>
+        {erro && <div className="alert alert-danger">{erro}</div>}
+
+        {/* =========================
+            FORMULÁRIO
+        ========================= */}
+        <div className="card p-3 mb-3">
+
+          <div className="row">
+
+            <div className="col-md-4">
+              <select
+                className="form-control"
+                value={idProduto}
+                onChange={(e) => setIdProduto(e.target.value)}
+              >
+                <option value="">Selecione Produto</option>
+                {produtos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-4">
+              <select
+                className="form-control"
+                value={idForma}
+                onChange={(e) => setIdForma(e.target.value)}
+              >
+                <option value="">Forma Pagamento</option>
+                {formas.map(f => (
+                  <option key={f.id} value={f.id}>{f.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-4">
+              <input
+                type="number"
+                className="form-control"
+                value={quantidade}
+                onChange={(e) => setQuantidade(e.target.value)}
+                placeholder="Quantidade"
+              />
+            </div>
+
+          </div>
+
+          {/* PARCELAS */}
+          <div className="mt-3">
+            <input
+              type="number"
+              className="form-control"
+              placeholder="Quantidade de parcelas"
+              value={qtdParcelas}
+              onChange={(e) => {
+                const qtd = parseInt(e.target.value) || 0;
+                setQtdParcelas(e.target.value);
+                gerarParcelas(qtd);
+              }}
+            />
+          </div>
+
+          {parcelas.map((p, i) => (
+            <div key={i} className="row mt-2">
+
+              <div className="col-md-2">
+                <input className="form-control" value={p.numero} readOnly />
+              </div>
+
+              <div className="col-md-5">
+                <input
+                  className="form-control"
+                  placeholder="Valor"
+                  onChange={(e) => {
+                    const nova = [...parcelas];
+                    nova[i].valor = e.target.value;
+                    setParcelas(nova);
+                  }}
+                />
+              </div>
+
+              <div className="col-md-5">
+                <input
+                  type="date"
+                  className="form-control"
+                  onChange={(e) => {
+                    const nova = [...parcelas];
+                    nova[i].data_vencimento = e.target.value;
+                    setParcelas(nova);
+                  }}
+                />
+              </div>
+
+            </div>
           ))}
-        </select>
 
-        <select onChange={(e)=>setFormaId(e.target.value)}>
-          <option>Forma</option>
-          {formas.map(f => (
-            <option key={f.id} value={f.id}>{f.nome}</option>
-          ))}
-        </select>
-
-        <input
-          type="number"
-          placeholder="Qtd parcelas"
-          onChange={(e)=>{
-            setQtdParcelas(e.target.value);
-            gerarParcelas(e.target.value);
-          }}
-        />
-
-        <button onClick={salvar}>Salvar</button>
-      </div>
-
-      {/* PARCELAS */}
-      {parcelas.map((p,i)=>(
-        <div key={i}>
-          <input value={p.numero} readOnly />
-          <input placeholder="valor"
-            onChange={(e)=>{
-              const nova=[...parcelas];
-              nova[i].valor=e.target.value;
-              setParcelas(nova);
-            }}
-          />
-          <input type="date"
-            onChange={(e)=>{
-              const nova=[...parcelas];
-              nova[i].data_vencimento=e.target.value;
-              setParcelas(nova);
-            }}
-          />
-        </div>
-      ))}
-
-      {/* LISTA */}
-      {pagamentos.map(p=>(
-        <div key={p.id}>
-          {p.nome_produto} - {p.status}
-
-          <button onClick={()=>{
-            setEditar(p);
-            setStatus(p.status);
-          }}>
-            Editar
+          <button
+            className="btn btn-success mt-3"
+            onClick={criarPagamento}
+          >
+            Criar Pagamento
           </button>
+
         </div>
-      ))}
 
-      {/* MODAL */}
-      {editar && (
-        <div style={{border:"1px solid", padding:20}}>
-          <h4>Editar</h4>
+        {/* =========================
+            LISTA
+        ========================= */}
+        <div className="card p-3">
 
-          <select value={status} onChange={(e)=>setStatus(e.target.value)}>
-            <option value="pendente">Pendente</option>
-            <option value="pago">Pago</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
+          {pagamentos.map(p => (
+            <div key={p.id} className="d-flex justify-content-between border-bottom py-2">
 
-          <button onClick={atualizar}>Salvar</button>
-          <button onClick={()=>setEditar(null)}>Fechar</button>
+              <div>
+                <strong>{p.nome_produto || "Produto"}</strong><br />
+                Status: {p.status}
+              </div>
+
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  setEditarPagamento(p);
+                  setNovoStatus(p.status);
+                }}
+              >
+                Editar
+              </button>
+
+            </div>
+          ))}
+
         </div>
-      )}
 
-    </div>
+        {/* =========================
+            MODAL EDITAR
+        ========================= */}
+        {editarPagamento && (
+          <div className="card p-3 mt-3">
+
+            <h5>Editar Pagamento #{editarPagamento.id}</h5>
+
+            <select
+              className="form-control mb-2"
+              value={novoStatus}
+              onChange={(e) => setNovoStatus(e.target.value)}
+            >
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+
+            <button className="btn btn-success" onClick={atualizarStatus}>
+              Salvar
+            </button>
+
+            <button
+              className="btn btn-secondary mt-2"
+              onClick={() => setEditarPagamento(null)}
+            >
+              Cancelar
+            </button>
+
+          </div>
+        )}
+
+      </div>
+    </>
   );
 }
