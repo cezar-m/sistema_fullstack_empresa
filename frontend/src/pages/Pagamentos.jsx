@@ -32,7 +32,7 @@ export default function Pagamentos() {
   const carregar = async () => {
     try {
       const [p, f, pag] = await Promise.all([
-        api.get("/produtos"),
+        api.get("/products"),
         api.get("/formas-pagamento"),
         api.get("/pagamentos"),
       ]);
