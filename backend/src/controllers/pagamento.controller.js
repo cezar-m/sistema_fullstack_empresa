@@ -1,167 +1,127 @@
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR PAGAMENTO (FINAL REAL)
+   CRIAR PAGAMENTO
 ========================= */
 export const criarPagamento = async (req, res) => {
   try {
-    console.log("BODY:", req.body);
-    console.log("USER:", req.user);
-
-    /* =========================
-       AUTENTICAÇÃO
-    ========================= */
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        erro: "Usuário não autenticado"
-      });
+    if (!req.user?.id) {
+      return res.status(401).json({ erro: "Não autenticado" });
     }
 
-    /* =========================
-       DADOS
-    ========================= */
-    let {
-      id_produto,
-      quantidade,
-      id_forma_pagamento,
-      parcelas
-    } = req.body;
+    let { id_produto, quantidade, id_forma_pagamento, parcelas } = req.body;
 
-    // NORMALIZAÇÃO SEGURA
     id_produto = Number(id_produto);
     id_forma_pagamento = Number(id_forma_pagamento);
     quantidade = Number(quantidade) || 1;
     parcelas = Array.isArray(parcelas) ? parcelas : [];
 
-    /* =========================
-       VALIDAÇÃO (SEM BUG)
-    ========================= */
     if (!id_produto || !id_forma_pagamento) {
-      return res.status(400).json({
-        erro: "Selecione produto e forma de pagamento"
-      });
+      return res.status(400).json({ erro: "Selecione produto e forma" });
     }
 
-    if (quantidade <= 0) {
-      return res.status(400).json({
-        erro: "Quantidade inválida"
-      });
-    }
-
-    /* =========================
-       PRODUTO
-    ========================= */
-    const produtoResult = await db.query(
-      "SELECT id, nome, preco FROM produtos WHERE id = $1",
+    const produto = await db.query(
+      "SELECT * FROM produtos WHERE id=$1",
       [id_produto]
     );
 
-    if (produtoResult.rows.length === 0) {
-      return res.status(404).json({
-        erro: "Produto não encontrado"
-      });
+    if (!produto.rows.length) {
+      return res.status(404).json({ erro: "Produto não encontrado" });
     }
 
-    const produto = produtoResult.rows[0];
+    const valor = Number(produto.rows[0].preco) * quantidade;
 
-    const valor = Number(produto.preco) * quantidade;
-
-    if (isNaN(valor)) {
-      return res.status(400).json({
-        erro: "Erro ao calcular valor"
-      });
-    }
-
-    /* =========================
-       FORMA DE PAGAMENTO
-    ========================= */
-    const formaResult = await db.query(
-      "SELECT id FROM formas_pagamento WHERE id = $1 AND ativo = true",
+    const forma = await db.query(
+      "SELECT * FROM formas_pagamento WHERE id=$1 AND ativo=true",
       [id_forma_pagamento]
     );
 
-    if (formaResult.rows.length === 0) {
-      return res.status(400).json({
-        erro: "Forma de pagamento inválida"
-      });
+    if (!forma.rows.length) {
+      return res.status(400).json({ erro: "Forma inválida" });
     }
 
-    /* =========================
-       CRIAR VENDA
-    ========================= */
-    const vendaResult = await db.query(
-      `INSERT INTO vendas (id_usuario, data_venda)
-       VALUES ($1, NOW())
-       RETURNING id`,
+    const venda = await db.query(
+      "INSERT INTO vendas (id_usuario, data_venda) VALUES ($1, NOW()) RETURNING id",
       [req.user.id]
     );
 
-    const id_venda = vendaResult.rows[0].id;
+    const id_venda = venda.rows[0].id;
 
     await db.query(
-      `INSERT INTO itens_venda (id_venda, id_produto, quantidade)
-       VALUES ($1, $2, $3)`,
+      "INSERT INTO itens_venda (id_venda, id_produto, quantidade) VALUES ($1,$2,$3)",
       [id_venda, id_produto, quantidade]
     );
 
-    /* =========================
-       CRIAR PAGAMENTO
-    ========================= */
-    const pagamentoResult = await db.query(
-      `INSERT INTO pagamentos
+    const pagamento = await db.query(
+      `INSERT INTO pagamentos 
        (id_venda, id_forma_pagamento, valor, status, data_pagamento)
-       VALUES ($1, $2, $3, $4, NOW())
-       RETURNING id`,
-      [id_venda, id_forma_pagamento, valor, "pago"]
+       VALUES ($1,$2,$3,'pendente',NOW()) RETURNING id`,
+      [id_venda, id_forma_pagamento, valor]
     );
 
-    const id_pagamento = pagamentoResult.rows[0].id;
+    const id_pagamento = pagamento.rows[0].id;
 
-    /* =========================
-       PARCELAS (OPCIONAL)
-    ========================= */
-    if (parcelas.length > 0) {
-      for (const p of parcelas) {
+    for (const p of parcelas) {
+      if (!p.numero || !p.valor || !p.data_vencimento) continue;
 
-        const numero = Number(p.numero);
-        const valorParcela = Number(p.valor);
-        const data = p.data_vencimento;
-
-        // IGNORA inválidas sem quebrar
-        if (!numero || !valorParcela || !data) {
-          console.log("Parcela ignorada:", p);
-          continue;
-        }
-
-        await db.query(
-          `INSERT INTO parcelas
-           (id_pagamento, numero_parcela, valor, data_vencimento, status)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            id_pagamento,
-            numero,
-            valorParcela,
-            data,
-            p.status || "pendente"
-          ]
-        );
-      }
+      await db.query(
+        `INSERT INTO parcelas 
+        (id_pagamento, numero_parcela, valor, data_vencimento, status)
+        VALUES ($1,$2,$3,$4,'pendente')`,
+        [id_pagamento, p.numero, p.valor, p.data_vencimento]
+      );
     }
 
-    /* =========================
-       RESPOSTA
-    ========================= */
-    return res.status(201).json({
-      msg: "Pagamento criado com sucesso",
-      id_pagamento
-    });
+    res.json({ msg: "OK", id_pagamento });
 
   } catch (err) {
-    console.error("ERRO REAL:", err);
-
-    return res.status(500).json({
-      erro: "Erro interno no servidor",
-      detalhe: err.message
-    });
+    console.error(err);
+    res.status(500).json({ erro: err.message });
   }
+};
+
+/* =========================
+   LISTAR PAGAMENTOS
+========================= */
+export const listarPagamentos = async (req, res) => {
+  const result = await db.query(`
+    SELECT p.*, pr.nome as nome_produto, f.nome as forma
+    FROM pagamentos p
+    JOIN vendas v ON v.id = p.id_venda
+    JOIN itens_venda iv ON iv.id_venda = v.id
+    JOIN produtos pr ON pr.id = iv.id_produto
+    JOIN formas_pagamento f ON f.id = p.id_forma_pagamento
+    ORDER BY p.id DESC
+  `);
+
+  res.json(result.rows);
+};
+
+/* =========================
+   ATUALIZAR PAGAMENTO
+========================= */
+export const atualizarPagamento = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  await db.query(
+    "UPDATE pagamentos SET status=$1 WHERE id=$2",
+    [status, id]
+  );
+
+  res.json({ msg: "Atualizado" });
+};
+
+/* =========================
+   LISTAR PARCELAS
+========================= */
+export const listarParcelas = async (req, res) => {
+  const { id } = req.params;
+
+  const result = await db.query(
+    "SELECT * FROM parcelas WHERE id_pagamento=$1",
+    [id]
+  );
+
+  res.json(result.rows);
 };
