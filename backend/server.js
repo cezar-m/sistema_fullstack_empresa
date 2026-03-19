@@ -22,12 +22,9 @@ const app = express();
 // CORS CONFIGURAÇÃO
 // =====================
 app.use(cors({
-  origin: [
-    "https://sistema-fullstack-empresa.vercel.app", // frontend oficial
-    "http://localhost:5000" // caso teste local
-  ],
+  origin: true,
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  credentials: true // necessário se enviar cookies ou tokens
+  credentials: true
 }));
 
 // =====================
