@@ -11,7 +11,6 @@ export const criarPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Dados obrigatórios" });
     }
 
-    // Cria pagamento
     const pagamento = await db.query(
       `INSERT INTO pagamentos (id_venda, id_forma_pagamento, valor, status)
        VALUES ($1, $2, $3, 'pendente')
@@ -21,7 +20,7 @@ export const criarPagamento = async (req, res) => {
 
     const pagamentoId = pagamento.rows[0].id;
 
-    // Cria parcelas se existir tabela 'parcelas'
+    // Criar parcelas se existir
     if (parcelas && parcelas.length > 0) {
       for (let p of parcelas) {
         if (!p.valor || !p.data_vencimento) continue;
@@ -43,15 +42,23 @@ export const criarPagamento = async (req, res) => {
 };
 
 /* =========================
-   LISTAR PAGAMENTOS
+   LISTAR PAGAMENTOS POR ID DE USUARIO
 ========================= */
-export const listarPagamentos = async (req, res) => {
+export const listarPagamentosPorId = async (req, res) => {
   try {
+    const id_usuario = req.user.id;
+
     const result = await db.query(
-      "SELECT * FROM pagamentos ORDER BY id DESC"
+      `SELECT p.*, pr.nome AS nome_produto
+       FROM pagamentos p
+       LEFT JOIN produtos pr ON pr.id = p.id_venda
+       WHERE p.id_usuario = $1
+       ORDER BY p.id DESC`,
+      [id_usuario]
     );
 
     res.json(result.rows);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: "Erro ao listar pagamentos" });
@@ -59,18 +66,15 @@ export const listarPagamentos = async (req, res) => {
 };
 
 /* =========================
-   MARCAR COMO PAGO / ATUALIZAR STATUS
+   MARCAR COMO PAGO
 ========================= */
-export const atualizarStatus = async (req, res) => {
+export const marcarComoPago = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status) return res.status(400).json({ erro: "Status obrigatório" });
 
     await db.query(
-      "UPDATE pagamentos SET status = $1 WHERE id = $2",
-      [status, id]
+      "UPDATE pagamentos SET status = 'pago' WHERE id = $1",
+      [id]
     );
 
     res.json({ sucesso: true });
@@ -83,7 +87,7 @@ export const atualizarStatus = async (req, res) => {
 /* =========================
    LISTAR PARCELAS DE UM PAGAMENTO
 ========================= */
-export const listarParcelas = async (req, res) => {
+export const listarParcelasPorPagamento = async (req, res) => {
   try {
     const { id } = req.params;
 
