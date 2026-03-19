@@ -28,7 +28,7 @@ export default function Pagamentos() {
 
   const carregar = async () => {
     try {
-      const resProdutos = await api.get("/products");
+      const resProdutos = await api.get("/products/listar");
       setProdutos(resProdutos.data || []);
     } catch (err) {
       console.error("ERRO PRODUTOS:", err);
