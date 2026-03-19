@@ -99,16 +99,12 @@ export const criarPagamento = async (req, res) => {
   }
 };
 
-/* =========================
-   LISTAR PAGAMENTOS
-========================= */
 export const listarPagamentosPorId = async (req, res) => {
   try {
     const result = await db.query(`
       SELECT
         p.id,
         pr.nome AS nome_produto,
-        f.nome AS forma_pagamento,
         p.valor,
         p.status,
         p.data_pagamento
@@ -116,19 +112,18 @@ export const listarPagamentosPorId = async (req, res) => {
       JOIN vendas v ON v.id = p.id_venda
       JOIN itens_venda iv ON iv.id_venda = v.id
       JOIN produtos pr ON pr.id = iv.id_produto
-      JOIN formas_pagamento f ON f.id = p.id_forma_pagamento
       WHERE v.id_usuario = $1
-      GROUP BY p.id, pr.nome, f.nome
       ORDER BY p.id DESC
     `, [req.user.id]);
 
     res.json(result.rows);
 
   } catch (err) {
-    console.error("ERRO LISTAR:", err);
-    res.status(500).json({ erro: "Erro ao listar pagamentos" });
+    console.error("ERRO REAL:", err);
+    res.status(500).json({ erro: err.message });
   }
 };
+
 
 /* =========================
    MARCAR COMO PAGO
