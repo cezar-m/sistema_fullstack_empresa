@@ -32,7 +32,7 @@ export default function Pagamentos() {
   const carregar = async () => {
 
   try {
-    const resProdutos = await api.get("/productos");
+    const resProdutos = await api.get("/produtos");
     setProdutos(resProdutos.data || []);
   } catch (err) {
     console.error("ERRO PRODUCTS:", err);
