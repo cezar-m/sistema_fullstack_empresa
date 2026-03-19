@@ -30,30 +30,27 @@ export default function Pagamentos() {
   }, []);
 
   const carregar = async () => {
+    try {
+      const resProdutos = await api.get("/produtos");
+      setProdutos(resProdutos.data || []);
+    } catch (err) {
+      console.error("ERRO PRODUTOS:", err);
+    }
 
-  try {
-    const resProdutos = await api.get("/produtos");
-    setProdutos(resProdutos.data || []);
-  } catch (err) {
-    console.error("ERRO PRODUCTS:", err);
-  }
+    try {
+      const resFormas = await api.get("/formas-pagamento");
+      setFormas(resFormas.data || []);
+    } catch (err) {
+      console.error("ERRO FORMAS:", err);
+    }
 
-  try {
-    const resFormas = await api.get("/formas-pagamento");
-    setFormas(resFormas.data || []);
-  } catch (err) {
-    console.error("ERRO FORMAS:", err);
-  }
-
-  try {
-    const resPag = await api.get("/pagamentos");
-    setPagamentos(resPag.data || []);
-  } catch (err) {
-    console.error("ERRO PAGAMENTOS:", err);
-  }
-
-};
-
+    try {
+      const resPag = await api.get("/pagamentos");
+      setPagamentos(resPag.data || []);
+    } catch (err) {
+      console.error("ERRO PAGAMENTOS:", err);
+    }
+  };
 
   /* =========================
      CALC VALOR
@@ -68,7 +65,7 @@ export default function Pagamentos() {
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS (CORRIGIDO)
+     GERAR PARCELAS
   ========================= */
   useEffect(() => {
 
@@ -79,7 +76,6 @@ export default function Pagamentos() {
 
     const valorNum = Number(valor);
     const base = Number((valorNum / qtdParcelas).toFixed(2));
-
     const hoje = new Date();
 
     const lista = [];
@@ -101,7 +97,7 @@ export default function Pagamentos() {
   }, [qtdParcelas, valor]);
 
   /* =========================
-     CRIAR
+     CRIAR PAGAMENTO (CORRIGIDO)
   ========================= */
   const criarPagamento = async () => {
 
@@ -112,16 +108,17 @@ export default function Pagamentos() {
     try {
       setLoading(true);
 
+      const produto = produtos.find(p => Number(p.id) === Number(produtoId));
+      const forma = formas.find(f => Number(f.id) === Number(formaPagamento));
+
       await api.post("/pagamentos", {
-        id_produto: Number(produtoId),
-        quantidade: Number(quantidade),
-        id_forma_pagamento: Number(formaPagamento),
+        nome_produto: produto?.nome,
+        forma_pagamento: forma?.nome,
         parcelas: parcelas.length ? parcelas : []
       });
 
       setMensagem("Criado com sucesso");
 
-      // RESET
       setProdutoId("");
       setFormaPagamento("");
       setQuantidade(1);
@@ -144,7 +141,7 @@ export default function Pagamentos() {
   ========================= */
   const salvarEdicao = async () => {
     try {
-      await api.put(`/pagamentos/${editarPagamento.id}`, {
+      await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
         status: novoStatus,
       });
 
@@ -221,7 +218,7 @@ export default function Pagamentos() {
 
           </div>
 
-          {/* PARCELAS VISUAL */}
+          {/* PARCELAS */}
           {parcelas.length > 0 && (
             <div className="mt-3">
               <strong>Parcelas:</strong>
@@ -263,7 +260,7 @@ export default function Pagamentos() {
 
                 <td>
                   <button
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-warning btn-sm"
                     onClick={() => {
                       setEditarPagamento(p);
                       setNovoStatus(p.status);
@@ -277,9 +274,9 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* MODAL CORRIGIDO */}
+        {/* MODAL */}
         {editarPagamento && (
-          <div className="modal fade show d-block" tabIndex="-1">
+          <div className="modal fade show d-block">
             <div className="modal-dialog">
               <div className="modal-content">
 
@@ -291,6 +288,7 @@ export default function Pagamentos() {
                 </div>
 
                 <div className="modal-body">
+                  <label>Status:</label>
                   <select
                     className="form-select"
                     value={novoStatus}
