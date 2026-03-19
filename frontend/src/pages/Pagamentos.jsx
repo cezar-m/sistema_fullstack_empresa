@@ -122,7 +122,7 @@ export default function Pagamentos() {
 
   const salvarEdicao = async () => {
     try {
-      await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
+      await api.put(`/pagamentos/pago/${editarPagamento.id`, {
         status: novoStatus,
       });
 
