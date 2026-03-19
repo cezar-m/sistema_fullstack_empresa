@@ -113,11 +113,13 @@ export default function Pagamentos() {
     try {
       setLoading(true);
 
+      const produto = produtos.find(p => Number(p.id) === Number(produtoId));
+      const forma = formas.find(f => Number(f.id) === Number(formaPagamento));
+
       await api.post("/pagamentos", {
-        id_produto: Number(produtoId),
-        quantidade: Number(quantidade),
-        id_forma_pagamento: Number(formaPagamento),
-        parcelas: parcelas.length ? parcelas : []
+        nome_produto: produto?.nome,
+        forma_pagamento: forma?.nome,
+        parcelas
       });
 
       setMensagem("Criado com sucesso");
