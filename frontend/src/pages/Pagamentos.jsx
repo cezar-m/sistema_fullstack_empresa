@@ -22,16 +22,13 @@ export default function Pagamentos() {
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /* =========================
-     LOAD
-  ========================= */
   useEffect(() => {
     carregar();
   }, []);
 
   const carregar = async () => {
     try {
-      const resProdutos = await api.get("/produtos");
+      const resProdutos = await api.get("/products");
       setProdutos(resProdutos.data || []);
     } catch (err) {
       console.error("ERRO PRODUTOS:", err);
@@ -52,9 +49,6 @@ export default function Pagamentos() {
     }
   };
 
-  /* =========================
-     CALC VALOR
-  ========================= */
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
     if (produto) {
@@ -64,18 +58,13 @@ export default function Pagamentos() {
     }
   }, [produtoId, quantidade, produtos]);
 
-  /* =========================
-     GERAR PARCELAS
-  ========================= */
   useEffect(() => {
-
     if (!valor || qtdParcelas <= 1) {
       setParcelas([]);
       return;
     }
 
-    const valorNum = Number(valor);
-    const base = Number((valorNum / qtdParcelas).toFixed(2));
+    const base = Number((valor / qtdParcelas).toFixed(2));
     const hoje = new Date();
 
     const lista = [];
@@ -93,14 +82,9 @@ export default function Pagamentos() {
     }
 
     setParcelas(lista);
-
   }, [qtdParcelas, valor]);
 
-  /* =========================
-     CRIAR PAGAMENTO (CORRIGIDO)
-  ========================= */
   const criarPagamento = async () => {
-
     if (!produtoId || !formaPagamento) {
       return setMensagem("Dados incompletos");
     }
@@ -114,7 +98,7 @@ export default function Pagamentos() {
       await api.post("/pagamentos", {
         nome_produto: produto?.nome,
         forma_pagamento: forma?.nome,
-        parcelas: parcelas.length ? parcelas : []
+        parcelas
       });
 
       setMensagem("Criado com sucesso");
@@ -136,9 +120,6 @@ export default function Pagamentos() {
     }
   };
 
-  /* =========================
-     EDITAR PAGAMENTO
-  ========================= */
   const salvarEdicao = async () => {
     try {
       await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
@@ -158,16 +139,11 @@ export default function Pagamentos() {
     <DashboardLayout>
 
       <div className="container mt-4">
-
         <h3>Pagamentos</h3>
 
-        {mensagem && (
-          <div className="alert alert-info">{mensagem}</div>
-        )}
+        {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
-        {/* FORM */}
         <div className="card p-3 mb-3">
-
           <div className="row g-2">
 
             <div className="col-md-3">
@@ -218,7 +194,6 @@ export default function Pagamentos() {
 
           </div>
 
-          {/* PARCELAS */}
           {parcelas.length > 0 && (
             <div className="mt-3">
               <strong>Parcelas:</strong>
@@ -230,17 +205,11 @@ export default function Pagamentos() {
             </div>
           )}
 
-          <button
-            className="btn btn-success mt-3"
-            onClick={criarPagamento}
-            disabled={loading}
-          >
-            {loading ? "Salvando..." : "Salvar"}
+          <button className="btn btn-success mt-3" onClick={criarPagamento}>
+            Salvar
           </button>
-
         </div>
 
-        {/* LISTA */}
         <table className="table table-striped">
           <thead>
             <tr>
@@ -257,7 +226,6 @@ export default function Pagamentos() {
                 <td>{p.nome_produto}</td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
                 <td>{p.status}</td>
-
                 <td>
                   <button
                     className="btn btn-warning btn-sm"
@@ -274,21 +242,19 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* MODAL */}
         {editarPagamento && (
           <div className="modal fade show d-block">
             <div className="modal-dialog">
               <div className="modal-content">
 
                 <div className="modal-header">
-                  <h5 className="modal-title">Editar Status</h5>
+                  <h5>Editar Status</h5>
                   <button className="btn-close"
                     onClick={() => setEditarPagamento(null)}
                   />
                 </div>
 
                 <div className="modal-body">
-                  <label>Status:</label>
                   <select
                     className="form-select"
                     value={novoStatus}
@@ -301,15 +267,13 @@ export default function Pagamentos() {
                 </div>
 
                 <div className="modal-footer">
-                  <button
-                    className="btn btn-secondary"
+                  <button className="btn btn-secondary"
                     onClick={() => setEditarPagamento(null)}
                   >
                     Fechar
                   </button>
 
-                  <button
-                    className="btn btn-primary"
+                  <button className="btn btn-primary"
                     onClick={salvarEdicao}
                   >
                     Salvar
