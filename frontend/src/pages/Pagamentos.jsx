@@ -290,11 +290,11 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* 🔥 TABELA DE PARCELAS */}
+       {/* 🔥 TABELA DE PARCELAS */}
         {parcelasTabela.length > 0 && (
           <div className="card mt-4 p-3">
             <h5>Parcelas</h5>
-
+        
             <table className="table table-bordered">
               <thead>
                 <tr>
@@ -302,22 +302,63 @@ export default function Pagamentos() {
                   <th>Valor</th>
                   <th>Vencimento</th>
                   <th>Status</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
-
+        
               <tbody>
                 {parcelasTabela.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
+        
                     <td>R$ {Number(p.valor).toFixed(2)}</td>
-                    <td>{p.data_vencimento}</td>
+        
+                    {/* ✅ CORREÇÃO DATA */}
+                    <td>
+                      {new Date(p.data_vencimento).toLocaleDateString("pt-BR")}
+                    </td>
+        
                     <td>{p.status}</td>
+        
+                    {/* ✅ BOTÃO EDITAR STATUS DA PARCELA */}
+                    <td>
+                      <select
+                        className="form-select form-select-sm"
+                        value={p.status}
+                        onChange={async (e) => {
+                          try {
+                            await api.put(`/pagamentos/parcelas/${p.id}`, {
+                              status: e.target.value
+                            });
+        
+                            // 🔄 atualiza na tela sem reload
+                            setParcelasTabela(prev =>
+                              prev.map(item =>
+                                item.id === p.id
+                                  ? { ...item, status: e.target.value }
+                                  : item
+                              )
+                            );
+        
+                          } catch (err) {
+                            console.error(err);
+                            setMensagem("Erro ao atualizar parcela");
+                          }
+                        }}
+                      >
+                        <option value="pendente">Pendente</option>
+                        <option value="pago">Pago</option>
+                        <option value="cancelado">Cancelado</option>
+                      </select>
+                    </td>
+        
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+
 
         {/* MODAL EDITAR */}
         {editarPagamento && (
