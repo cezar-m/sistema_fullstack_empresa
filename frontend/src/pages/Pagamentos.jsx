@@ -22,7 +22,6 @@ export default function Pagamentos() {
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🆕 paginação + parcelas
   const [pagina, setPagina] = useState(1);
   const itensPorPagina = 5;
   const [verParcelas, setVerParcelas] = useState(null);
@@ -63,14 +62,14 @@ export default function Pagamentos() {
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
     if (produto) {
-      setValor(Number(produto.preco) * quantidade);
+      setValor(Number(produto.preco) * Number(quantidade));
     } else {
       setValor(0);
     }
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS
+     GERAR PARCELAS (CORRIGIDO)
   ========================= */
   useEffect(() => {
 
@@ -80,18 +79,25 @@ export default function Pagamentos() {
     }
 
     const valorNum = Number(valor);
-    const base = Number((valorNum / qtdParcelas).toFixed(2));
-
-    const hoje = new Date();
     const lista = [];
+    let soma = 0;
 
     for (let i = 0; i < qtdParcelas; i++) {
+
+      let valorParcela = Number((valorNum / qtdParcelas).toFixed(2));
+
+      if (i === qtdParcelas - 1) {
+        valorParcela = Number((valorNum - soma).toFixed(2));
+      }
+
+      soma += valorParcela;
+
       const venc = new Date();
-      venc.setMonth(hoje.getMonth() + i + 1);
+      venc.setMonth(new Date().getMonth() + i + 1);
 
       lista.push({
         numero: i + 1,
-        valor: base,
+        valor: valorParcela,
         data_vencimento: venc.toISOString().split("T")[0],
         status: "pendente"
       });
@@ -102,7 +108,7 @@ export default function Pagamentos() {
   }, [qtdParcelas, valor]);
 
   /* =========================
-     CRIAR PAGAMENTO
+     CRIAR PAGAMENTO (CORRIGIDO)
   ========================= */
   const criarPagamento = async () => {
 
@@ -110,15 +116,14 @@ export default function Pagamentos() {
       return setMensagem("Dados incompletos");
     }
 
+    if (loading) return; // evita duplicação
+
     try {
       setLoading(true);
 
-      const produto = produtos.find(p => Number(p.id) === Number(produtoId));
-      const forma = formas.find(f => Number(f.id) === Number(formaPagamento));
-
       await api.post("/pagamentos", {
-        nome_produto: produto?.nome,
-        forma_pagamento: forma?.nome,
+        id_produto: produtoId,
+        id_forma_pagamento: formaPagamento,
         parcelas
       });
 
@@ -138,6 +143,19 @@ export default function Pagamentos() {
       setMensagem(err.response?.data?.erro || "Erro");
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* =========================
+     ABRIR PARCELAS (CORRIGIDO)
+  ========================= */
+  const abrirParcelas = async (p) => {
+    try {
+      const res = await api.get(`/pagamentos/${p.id}/parcelas`);
+      setVerParcelas({ ...p, parcelas: res.data });
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao carregar parcelas");
     }
   };
 
@@ -199,12 +217,12 @@ export default function Pagamentos() {
               <input type="number"
                 className="form-control"
                 value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
+                onChange={(e) => setQuantidade(Number(e.target.value))}
               />
             </div>
 
             <div className="col-md-2">
-              <input className="form-control" value={valor} readOnly />
+              <input className="form-control" value={Number(valor).toFixed(2)} readOnly />
             </div>
 
             <div className="col-md-3">
@@ -273,7 +291,7 @@ export default function Pagamentos() {
 
                   <button
                     className="btn btn-info btn-sm me-2"
-                    onClick={() => setVerParcelas(p)}
+                    onClick={() => abrirParcelas(p)}
                   >
                     Parcelas
                   </button>
@@ -335,8 +353,8 @@ export default function Pagamentos() {
                 <div className="modal-body">
                   {verParcelas.parcelas?.length > 0 ? (
                     verParcelas.parcelas.map(p => (
-                      <div key={p.numero}>
-                        {p.numero} - R$ {p.valor} - {p.status}
+                      <div key={p.id}>
+                        {p.numero_parcela} - R$ {p.valor} - {p.status}
                       </div>
                     ))
                   ) : (
