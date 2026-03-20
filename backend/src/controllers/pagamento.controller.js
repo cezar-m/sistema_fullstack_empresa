@@ -4,7 +4,11 @@ import db from "../config/db.js";
    CRIAR PAGAMENTO
 ========================= */
 export const criarPagamento = async (req, res) => {
+  const client = await db.connect();
+
   try {
+    await client.query("BEGIN");
+
     const {
       id_produto,
       id_forma_pagamento,
@@ -13,21 +17,21 @@ export const criarPagamento = async (req, res) => {
     } = req.body;
 
     if (!id_produto || !id_forma_pagamento) {
-      return res.status(400).json({ erro: "Dados incompletos" });
+      throw new Error("Dados incompletos");
     }
 
-    const produto = await db.query(
+    const produto = await client.query(
       "SELECT id, preco FROM produtos WHERE id = $1",
       [id_produto]
     );
 
     if (produto.rows.length === 0) {
-      return res.status(404).json({ erro: "Produto não encontrado" });
+      throw new Error("Produto não encontrado");
     }
 
     const valor = Number(produto.rows[0].preco);
 
-    const venda = await db.query(
+    const venda = await client.query(
       `INSERT INTO vendas (id_usuario, data_venda)
        VALUES ($1, NOW())
        RETURNING id`,
@@ -36,13 +40,13 @@ export const criarPagamento = async (req, res) => {
 
     const id_venda = venda.rows[0].id;
 
-    await db.query(
+    await client.query(
       `INSERT INTO itens_venda (id_venda, id_produto, quantidade)
        VALUES ($1, $2, $3)`,
       [id_venda, id_produto, 1]
     );
 
-    const pagamento = await db.query(
+    const pagamento = await client.query(
       `INSERT INTO pagamentos
        (id_venda, id_forma_pagamento, valor, status, data_pagamento)
        VALUES ($1, $2, $3, $4, NOW())
@@ -57,9 +61,23 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamento.rows[0].id;
 
+    // 🔥 CORREÇÃO DA SEQUENCE (BLINDAGEM)
+    await client.query(`
+      SELECT setval(
+        'parcelas_id_seq',
+        COALESCE((SELECT MAX(id) FROM parcelas), 1)
+      )
+    `);
+
+    // 🔥 INSERT PARCELAS COM VALIDAÇÃO
     if (parcelas.length > 0) {
       for (const p of parcelas) {
-        await db.query(
+
+        if (!p.numero || !p.valor || !p.data_vencimento) {
+          throw new Error("Parcela inválida");
+        }
+
+        await client.query(
           `INSERT INTO parcelas
            (id_pagamento, numero_parcela, valor, data_vencimento, status)
            VALUES ($1, $2, $3, $4, $5)`,
@@ -74,13 +92,19 @@ export const criarPagamento = async (req, res) => {
       }
     }
 
+    await client.query("COMMIT");
+
     res.json({ sucesso: true });
 
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("ERRO CRIAR:", err);
     res.status(500).json({ erro: err.message });
+  } finally {
+    client.release();
   }
 };
+
 
 /* =========================
    LISTAR PAGAMENTOS
