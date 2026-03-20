@@ -65,7 +65,7 @@ export const criarPagamento = async (req, res) => {
     await client.query(`
       SELECT setval(
         'public.parcelas_id_seq',
-        COALESCE((SELECT MAX(id) FROM parcelas), 1)
+        COALESCE((SELECT MAX(id) FROM parcelas), 0) + 1
       )
     `);
 
