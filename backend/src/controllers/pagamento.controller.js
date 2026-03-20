@@ -64,7 +64,7 @@ export const criarPagamento = async (req, res) => {
     // 🔥 CORREÇÃO DA SEQUENCE (BLINDAGEM)
     await client.query(`
       SELECT setval(
-        'public.parcelas_id_seq'
+        'public.parcelas_id_seq',
         COALESCE((SELECT MAX(id) FROM parcelas), 1)
       )
     `);
