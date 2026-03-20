@@ -16,7 +16,6 @@ export const criarPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Dados incompletos" });
     }
 
-    // PRODUTO
     const produto = await db.query(
       "SELECT id, preco FROM produtos WHERE id = $1",
       [id_produto]
@@ -28,7 +27,6 @@ export const criarPagamento = async (req, res) => {
 
     const valor = Number(produto.rows[0].preco);
 
-    // VENDA
     const venda = await db.query(
       `INSERT INTO vendas (id_usuario, data_venda)
        VALUES ($1, NOW())
@@ -44,7 +42,6 @@ export const criarPagamento = async (req, res) => {
       [id_venda, id_produto, 1]
     );
 
-    // PAGAMENTO
     const pagamento = await db.query(
       `INSERT INTO pagamentos
        (id_venda, id_forma_pagamento, valor, status, data_pagamento)
@@ -60,7 +57,6 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamento.rows[0].id;
 
-    // PARCELAS
     if (parcelas.length > 0) {
       for (const p of parcelas) {
         await db.query(
@@ -135,15 +131,43 @@ export const listarParcelasPorPagamento = async (req, res) => {
 };
 
 /* =========================
+   ATUALIZAR PAGAMENTO
+========================= */
+export const marcarComoPago = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ erro: "ID inválido" });
+    }
+
+    await db.query(
+      `UPDATE pagamentos
+       SET status = $1
+       WHERE id = $2`,
+      [status || "pago", id]
+    );
+
+    res.json({ sucesso: true });
+
+  } catch (err) {
+    console.error("ERRO UPDATE:", err);
+    res.status(500).json({ erro: err.message });
+  }
+};
+
+/* =========================
    ATUALIZAR PARCELA
 ========================= */
 export const atualizarParcela = async (req, res) => {
   try {
     const { id } = req.params;
+    const { status } = req.body;
 
     await db.query(
       `UPDATE parcelas SET status = $1 WHERE id = $2`,
-      [req.body.status, id]
+      [status, id]
     );
 
     res.json({ sucesso: true });
