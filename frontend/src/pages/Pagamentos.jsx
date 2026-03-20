@@ -24,7 +24,9 @@ export default function Pagamentos() {
 
   const [pagina, setPagina] = useState(1);
   const itensPorPagina = 5;
-  const [verParcelas, setVerParcelas] = useState(null);
+
+  // 🔥 parcelas exibidas abaixo
+  const [parcelasTabela, setParcelasTabela] = useState([]);
 
   /* =========================
      LOAD
@@ -37,22 +39,15 @@ export default function Pagamentos() {
     try {
       const resProdutos = await api.get("/products/listar");
       setProdutos(resProdutos.data || []);
-    } catch (err) {
-      console.error("ERRO PRODUTOS:", err);
-    }
 
-    try {
       const resFormas = await api.get("/formas-pagamento");
       setFormas(resFormas.data || []);
-    } catch (err) {
-      console.error("ERRO FORMAS:", err);
-    }
 
-    try {
       const resPag = await api.get("/pagamentos");
       setPagamentos(resPag.data || []);
+
     } catch (err) {
-      console.error("ERRO PAGAMENTOS:", err);
+      console.error(err);
     }
   };
 
@@ -69,7 +64,7 @@ export default function Pagamentos() {
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     GERAR PARCELAS (CORRIGIDO)
+     GERAR PARCELAS
   ========================= */
   useEffect(() => {
 
@@ -99,7 +94,6 @@ export default function Pagamentos() {
         numero: i + 1,
         valor: valorParcela,
         data_vencimento: venc.toISOString().split("T")[0],
-        status: "pendente"
       });
     }
 
@@ -108,7 +102,7 @@ export default function Pagamentos() {
   }, [qtdParcelas, valor]);
 
   /* =========================
-     CRIAR PAGAMENTO (CORRIGIDO)
+     CRIAR PAGAMENTO
   ========================= */
   const criarPagamento = async () => {
 
@@ -116,7 +110,7 @@ export default function Pagamentos() {
       return setMensagem("Dados incompletos");
     }
 
-    if (loading) return; // evita duplicação
+    if (loading) return;
 
     try {
       setLoading(true);
@@ -139,7 +133,6 @@ export default function Pagamentos() {
       carregar();
 
     } catch (err) {
-      console.error(err);
       setMensagem(err.response?.data?.erro || "Erro");
     } finally {
       setLoading(false);
@@ -147,12 +140,12 @@ export default function Pagamentos() {
   };
 
   /* =========================
-     ABRIR PARCELAS (CORRIGIDO)
+     CARREGAR PARCELAS NA TABELA
   ========================= */
   const abrirParcelas = async (p) => {
     try {
       const res = await api.get(`/pagamentos/${p.id}/parcelas`);
-      setVerParcelas({ ...p, parcelas: res.data });
+      setParcelasTabela(res.data || []);
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao carregar parcelas");
@@ -160,7 +153,7 @@ export default function Pagamentos() {
   };
 
   /* =========================
-     EDITAR PAGAMENTO
+     EDITAR STATUS
   ========================= */
   const salvarEdicao = async () => {
     try {
@@ -172,7 +165,6 @@ export default function Pagamentos() {
       carregar();
 
     } catch (err) {
-      console.error(err);
       setMensagem("Erro ao editar");
     }
   };
@@ -222,7 +214,7 @@ export default function Pagamentos() {
             </div>
 
             <div className="col-md-2">
-              <input className="form-control" value={Number(valor).toFixed(2)} readOnly />
+              <input className="form-control" value={valor.toFixed(2)} readOnly />
             </div>
 
             <div className="col-md-3">
@@ -246,18 +238,6 @@ export default function Pagamentos() {
             </div>
 
           </div>
-
-          {/* PARCELAS PREVIEW */}
-          {parcelas.length > 0 && (
-            <div className="mt-3">
-              <strong>Parcelas:</strong>
-              {parcelas.map(p => (
-                <div key={p.numero}>
-                  {p.numero} - R$ {p.valor} - {p.data_vencimento}
-                </div>
-              ))}
-            </div>
-          )}
 
           <button
             className="btn btn-success mt-3"
@@ -288,12 +268,11 @@ export default function Pagamentos() {
                 <td>{p.status}</td>
 
                 <td>
-
                   <button
                     className="btn btn-info btn-sm me-2"
                     onClick={() => abrirParcelas(p)}
                   >
-                    Parcelas
+                    Ver Parcelas
                   </button>
 
                   <button
@@ -305,65 +284,38 @@ export default function Pagamentos() {
                   >
                     Editar
                   </button>
-
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {/* PAGINAÇÃO */}
-        <div className="d-flex justify-content-center mt-3 gap-2">
+        {/* 🔥 TABELA DE PARCELAS */}
+        {parcelasTabela.length > 0 && (
+          <div className="card mt-4 p-3">
+            <h5>Parcelas</h5>
 
-          <button
-            className="btn btn-secondary"
-            disabled={pagina === 1}
-            onClick={() => setPagina(pagina - 1)}
-          >
-            Anterior
-          </button>
+            <table className="table table-bordered">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
 
-          <span className="align-self-center">
-            Página {pagina}
-          </span>
-
-          <button
-            className="btn btn-secondary"
-            disabled={inicio + itensPorPagina >= pagamentos.length}
-            onClick={() => setPagina(pagina + 1)}
-          >
-            Próxima
-          </button>
-
-        </div>
-
-        {/* MODAL PARCELAS */}
-        {verParcelas && (
-          <div className="modal fade show d-block">
-            <div className="modal-dialog">
-              <div className="modal-content">
-
-                <div className="modal-header">
-                  <h5 className="modal-title">Parcelas</h5>
-                  <button className="btn-close"
-                    onClick={() => setVerParcelas(null)}
-                  />
-                </div>
-
-                <div className="modal-body">
-                  {verParcelas.parcelas?.length > 0 ? (
-                    verParcelas.parcelas.map(p => (
-                      <div key={p.id}>
-                        {p.numero_parcela} - R$ {p.valor} - {p.status}
-                      </div>
-                    ))
-                  ) : (
-                    <p>Sem parcelas</p>
-                  )}
-                </div>
-
-              </div>
-            </div>
+              <tbody>
+                {parcelasTabela.map(p => (
+                  <tr key={p.id}>
+                    <td>{p.numero_parcela}</td>
+                    <td>R$ {Number(p.valor).toFixed(2)}</td>
+                    <td>{p.data_vencimento}</td>
+                    <td>{p.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
