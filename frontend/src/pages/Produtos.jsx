@@ -303,7 +303,7 @@ export default function Produtos() {
             <img src={preview} alt="preview" width="120" className="mb-2" />
           )}
 
-          <button className="btn btn-success">
+          <button className="btn btn-success px-4">
             {editadoId ? "Atualizar Produto" : "Cadastrar Produto"}
           </button>
         </form>
