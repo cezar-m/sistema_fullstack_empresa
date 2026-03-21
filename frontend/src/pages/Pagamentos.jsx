@@ -276,7 +276,7 @@ export default function Pagamentos() {
           </div>
 
          <div className="text-center mt-3">
-            <button className="btn btn-success px-4">
+            <button className="btn btn-success px-4"
               onClick={criarPagamento}
               disabled={loading}
             >
