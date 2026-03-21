@@ -44,7 +44,6 @@ export default function Pagamentos() {
 
       const resPag = await api.get("/pagamentos");
       setPagamentos(resPag.data || []);
-
     } catch (err) {
       console.error(err);
     }
@@ -60,7 +59,6 @@ export default function Pagamentos() {
   }, [produtoId, quantidade, produtos]);
 
   useEffect(() => {
-
     if (!valor || qtdParcelas <= 1) {
       setParcelas([]);
       return;
@@ -95,12 +93,9 @@ export default function Pagamentos() {
   }, [qtdParcelas, valor]);
 
   const criarPagamento = async () => {
-
     if (!produtoId || !formaPagamento) {
       return setMensagem("Dados incompletos");
     }
-
-    if (loading) return;
 
     try {
       setLoading(true);
@@ -192,6 +187,64 @@ export default function Pagamentos() {
 
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
+        {/* ✅ FORM RESTAURADO */}
+        <div className="card p-3 mb-3">
+          <div className="row g-2">
+
+            <div className="col-md-3">
+              <select className="form-select"
+                value={produtoId}
+                onChange={(e) => setProdutoId(e.target.value)}
+              >
+                <option value="">Produto</option>
+                {produtos.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome} - R$ {p.preco}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-2">
+              <input type="number" className="form-control"
+                value={quantidade}
+                onChange={(e) => setQuantidade(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="col-md-2">
+              <input className="form-control" value={valor.toFixed(2)} readOnly />
+            </div>
+
+            <div className="col-md-3">
+              <select className="form-select"
+                value={formaPagamento}
+                onChange={(e) => setFormaPagamento(e.target.value)}
+              >
+                <option value="">Forma</option>
+                {formas.map(f => (
+                  <option key={f.id} value={f.id}>{f.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-2">
+              <input type="number" className="form-control"
+                value={qtdParcelas}
+                onChange={(e) => setQtdParcelas(Number(e.target.value))}
+              />
+            </div>
+
+          </div>
+
+          <button className="btn btn-success mt-3"
+            onClick={criarPagamento}
+            disabled={loading}
+          >
+            {loading ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
+
         {/* TABELA */}
         <table className="table table-striped">
           <thead>
@@ -214,20 +267,16 @@ export default function Pagamentos() {
                 </td>
 
                 <td>
-                  <button
-                    className="btn btn-info btn-sm me-2"
-                    onClick={() => abrirParcelas(p)}
-                  >
+                  <button className="btn btn-info btn-sm me-2"
+                    onClick={() => abrirParcelas(p)}>
                     Ver Parcelas
                   </button>
 
-                  <button
-                    className="btn btn-primary btn-sm"
+                  <button className="btn btn-primary btn-sm"
                     onClick={() => {
                       setEditarPagamento(p);
                       setNovoStatus(p.status);
-                    }}
-                  >
+                    }}>
                     Editar
                   </button>
                 </td>
@@ -236,75 +285,45 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* MODAL PAGAMENTO (ESSENCIAL) */}
+        {/* PAGINAÇÃO */}
+        <div className="d-flex justify-content-between mt-3">
+          <button className="btn btn-secondary"
+            disabled={pagina === 1}
+            onClick={() => setPagina(pagina - 1)}>
+            Anterior
+          </button>
+
+          <span>Página {pagina}</span>
+
+          <button className="btn btn-secondary"
+            disabled={inicio + itensPorPagina >= pagamentos.length}
+            onClick={() => setPagina(pagina + 1)}>
+            Próxima
+          </button>
+        </div>
+
+        {/* MODAIS */}
         {editarPagamento && (
           <div className="modal fade show d-block" style={{ background: "rgba(0,0,0,0.5)" }}>
             <div className="modal-dialog">
               <div className="modal-content">
-
                 <div className="modal-header">
                   <h5>Editar Status</h5>
                   <button className="btn-close" onClick={() => setEditarPagamento(null)} />
                 </div>
-
                 <div className="modal-body">
-                  <select
-                    className="form-select"
+                  <select className="form-select"
                     value={novoStatus}
-                    onChange={(e) => setNovoStatus(e.target.value)}
-                  >
+                    onChange={(e) => setNovoStatus(e.target.value)}>
                     <option value="pendente">Pendente</option>
                     <option value="pago">Pago</option>
                     <option value="cancelado">Cancelado</option>
                   </select>
                 </div>
-
                 <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setEditarPagamento(null)}>
-                    Fechar
-                  </button>
-                  <button className="btn btn-primary" onClick={salvarEdicao}>
-                    Salvar
-                  </button>
+                  <button className="btn btn-secondary" onClick={() => setEditarPagamento(null)}>Fechar</button>
+                  <button className="btn btn-primary" onClick={salvarEdicao}>Salvar</button>
                 </div>
-
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL PARCELA */}
-        {editarParcela && (
-          <div className="modal fade show d-block" style={{ background: "rgba(0,0,0,0.5)" }}>
-            <div className="modal-dialog">
-              <div className="modal-content">
-
-                <div className="modal-header">
-                  <h5>Editar Parcela</h5>
-                  <button className="btn-close" onClick={() => setEditarParcela(null)} />
-                </div>
-
-                <div className="modal-body">
-                  <select
-                    className="form-select"
-                    value={novoStatusParcela}
-                    onChange={(e) => setNovoStatusParcela(e.target.value)}
-                  >
-                    <option value="pendente">Pendente</option>
-                    <option value="pago">Pago</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                </div>
-
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setEditarParcela(null)}>
-                    Fechar
-                  </button>
-                  <button className="btn btn-primary" onClick={salvarEdicaoParcela}>
-                    Salvar
-                  </button>
-                </div>
-
               </div>
             </div>
           </div>
