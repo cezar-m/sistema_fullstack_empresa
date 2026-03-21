@@ -275,14 +275,15 @@ export default function Pagamentos() {
 
           </div>
 
-          <button
-            className="btn btn-success mt-3"
-            onClick={criarPagamento}
-            disabled={loading}
-          >
-            {loading ? "Salvando..." : "Salvar"}
-          </button>
-
+         <div className="text-center mt-3">
+            <button className="btn btn-success px-4">
+              onClick={criarPagamento}
+              disabled={loading}
+            >
+              {loading ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+           
         </div>
 
         {/* LISTA */}
