@@ -19,13 +19,16 @@ export default function Pagamentos() {
   const [editarPagamento, setEditarPagamento] = useState(null);
   const [novoStatus, setNovoStatus] = useState("pendente");
 
+  // 🔥 NOVO (PARCELA)
+  const [editarParcela, setEditarParcela] = useState(null);
+  const [novoStatusParcela, setNovoStatusParcela] = useState("pendente");
+
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [pagina, setPagina] = useState(1);
   const itensPorPagina = 5;
 
-  // 🔥 parcelas exibidas abaixo
   const [parcelasTabela, setParcelasTabela] = useState([]);
 
   /* =========================
@@ -140,7 +143,7 @@ export default function Pagamentos() {
   };
 
   /* =========================
-     CARREGAR PARCELAS NA TABELA
+     CARREGAR PARCELAS
   ========================= */
   const abrirParcelas = async (p) => {
     try {
@@ -153,7 +156,7 @@ export default function Pagamentos() {
   };
 
   /* =========================
-     EDITAR STATUS
+     EDITAR PAGAMENTO
   ========================= */
   const salvarEdicao = async () => {
     try {
@@ -164,8 +167,33 @@ export default function Pagamentos() {
       setEditarPagamento(null);
       carregar();
 
-    } catch (err) {
+    } catch {
       setMensagem("Erro ao editar");
+    }
+  };
+
+  /* =========================
+     EDITAR PARCELA
+  ========================= */
+  const salvarEdicaoParcela = async () => {
+    try {
+      await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
+        status: novoStatusParcela
+      });
+
+      setEditarParcela(null);
+
+      setParcelasTabela(prev =>
+        prev.map(p =>
+          p.id === editarParcela.id
+            ? { ...p, status: novoStatusParcela }
+            : p
+        )
+      );
+
+    } catch (err) {
+      console.error(err);
+      setMensagem("Erro ao editar parcela");
     }
   };
 
@@ -290,11 +318,32 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-       {/* 🔥 TABELA DE PARCELAS */}
+        {/* PAGINAÇÃO */}
+        <div className="d-flex justify-content-between mt-3">
+          <button
+            className="btn btn-secondary"
+            disabled={pagina === 1}
+            onClick={() => setPagina(pagina - 1)}
+          >
+            Anterior
+          </button>
+
+          <span>Página {pagina}</span>
+
+          <button
+            className="btn btn-secondary"
+            disabled={inicio + itensPorPagina >= pagamentos.length}
+            onClick={() => setPagina(pagina + 1)}
+          >
+            Próxima
+          </button>
+        </div>
+
+        {/* PARCELAS */}
         {parcelasTabela.length > 0 && (
           <div className="card mt-4 p-3">
             <h5>Parcelas</h5>
-        
+
             <table className="table table-bordered">
               <thead>
                 <tr>
@@ -305,53 +354,27 @@ export default function Pagamentos() {
                   <th>Ações</th>
                 </tr>
               </thead>
-        
+
               <tbody>
                 {parcelasTabela.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
-        
                     <td>R$ {Number(p.valor).toFixed(2)}</td>
-        
-                    {/* ✅ CORREÇÃO DATA */}
-                    <td>
-                      {new Date(p.data_vencimento).toLocaleDateString("pt-BR")}
-                    </td>
-        
+                    <td>{new Date(p.data_vencimento).toLocaleDateString("pt-BR")}</td>
                     <td>{p.status}</td>
-        
-                    {/* ✅ BOTÃO EDITAR STATUS DA PARCELA */}
+
                     <td>
-                      <select
-                        className="form-select form-select-sm"
-                        value={p.status}
-                        onChange={async (e) => {
-                          try {
-                            await api.put(`/pagamentos/parcelas/${p.id}`, {
-                              status: e.target.value
-                            });
-        
-                            // 🔄 atualiza na tela sem reload
-                            setParcelasTabela(prev =>
-                              prev.map(item =>
-                                item.id === p.id
-                                  ? { ...item, status: e.target.value }
-                                  : item
-                              )
-                            );
-        
-                          } catch (err) {
-                            console.error(err);
-                            setMensagem("Erro ao atualizar parcela");
-                          }
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => {
+                          setEditarParcela(p);
+                          setNovoStatusParcela(p.status);
                         }}
                       >
-                        <option value="pendente">Pendente</option>
-                        <option value="pago">Pago</option>
-                        <option value="cancelado">Cancelado</option>
-                      </select>
+                        Editar
+                      </button>
                     </td>
-        
+
                   </tr>
                 ))}
               </tbody>
@@ -359,23 +382,18 @@ export default function Pagamentos() {
           </div>
         )}
 
-
-        {/* MODAL EDITAR */}
+        {/* MODAL PAGAMENTO */}
         {editarPagamento && (
           <div className="modal fade show d-block">
             <div className="modal-dialog">
               <div className="modal-content">
-
                 <div className="modal-header">
-                  <h5 className="modal-title">Editar Status</h5>
-                  <button className="btn-close"
-                    onClick={() => setEditarPagamento(null)}
-                  />
+                  <h5>Editar Status</h5>
+                  <button className="btn-close" onClick={() => setEditarPagamento(null)} />
                 </div>
 
                 <div className="modal-body">
-                  <select
-                    className="form-select"
+                  <select className="form-select"
                     value={novoStatus}
                     onChange={(e) => setNovoStatus(e.target.value)}
                   >
@@ -386,21 +404,39 @@ export default function Pagamentos() {
                 </div>
 
                 <div className="modal-footer">
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => setEditarPagamento(null)}
-                  >
-                    Fechar
-                  </button>
+                  <button className="btn btn-secondary" onClick={() => setEditarPagamento(null)}>Fechar</button>
+                  <button className="btn btn-primary" onClick={salvarEdicao}>Salvar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-                  <button
-                    className="btn btn-primary"
-                    onClick={salvarEdicao}
-                  >
-                    Salvar
-                  </button>
+        {/* MODAL PARCELA */}
+        {editarParcela && (
+          <div className="modal fade show d-block">
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5>Editar Parcela</h5>
+                  <button className="btn-close" onClick={() => setEditarParcela(null)} />
                 </div>
 
+                <div className="modal-body">
+                  <select className="form-select"
+                    value={novoStatusParcela}
+                    onChange={(e) => setNovoStatusParcela(e.target.value)}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setEditarParcela(null)}>Fechar</button>
+                  <button className="btn btn-primary" onClick={salvarEdicaoParcela}>Salvar</button>
+                </div>
               </div>
             </div>
           </div>
