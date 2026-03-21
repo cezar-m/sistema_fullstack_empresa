@@ -29,9 +29,6 @@ export default function Pagamentos() {
   const itensPorPagina = 5;
 
   const [parcelasTabela, setParcelasTabela] = useState([]);
-  const [mensagem, setMensagem] = useState("");
-  const [loading, setLoading] = useState(false);
-
 
   useEffect(() => {
     if (mensagem) {
