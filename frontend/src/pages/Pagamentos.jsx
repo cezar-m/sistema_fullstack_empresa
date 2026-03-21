@@ -47,7 +47,6 @@ export default function Pagamentos() {
 
       const resPag = await api.get("/pagamentos");
       setPagamentos(resPag.data || []);
-
     } catch (err) {
       console.error(err);
     }
@@ -344,16 +343,28 @@ export default function Pagamentos() {
           </button>
         </div>
 
-        {/* PARCELAS */}
+        {/* PARCELAS COMPLETAS */}
         {parcelasTabela.length > 0 && (
           <div className="card mt-4 p-3">
             <h5>Parcelas</h5>
 
             <table className="table table-bordered">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+
               <tbody>
                 {parcelasTabela.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
+                    <td>R$ {Number(p.valor).toFixed(2)}</td>
+                    <td>{new Date(p.data_vencimento).toLocaleDateString("pt-BR")}</td>
                     <td className={getStatusClass(p.status)}>{p.status}</td>
 
                     <td>
@@ -367,6 +378,7 @@ export default function Pagamentos() {
                         Editar
                       </button>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
