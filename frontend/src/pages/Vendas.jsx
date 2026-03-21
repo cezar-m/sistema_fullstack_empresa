@@ -136,13 +136,14 @@ const PaginaVendas = () => {
 							</div>
 						)}
 						
-						<button
-							className="btn btn-primary w-100 mt-3"
-							onClick={criarVenda}
-							disabled={itens.length === 0}	
-						>
-							Finalizar Vendas
-						</button>
+						 <div className="text-center mt-3">
+            				<button className="btn btn-success px-4"
+								onClick={criarVenda}
+								disabled={itens.length === 0}	
+							>
+								Finalizar Vendas
+							</button>
+						</div>
 					</div>
 				</div>
 				
