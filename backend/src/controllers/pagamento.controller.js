@@ -19,8 +19,8 @@ export const criarPagamento = async (req, res) => {
 		} = req.body;
 
 		// ✅ VALIDAÇÃO CORRETA
-		if (!id_venda || !id_forma_pagamento) {
-			return res.status(400).json({ erro: "Dados incompletos" });
+		if (!id_venda || id_forma_pagamento == null || Number(id_forma_pagamento) <= 0) {
+ 			return res.status(400).json({ erro: "Dados incompletos" });
 		}
 
 		// 🔥 busca venda
