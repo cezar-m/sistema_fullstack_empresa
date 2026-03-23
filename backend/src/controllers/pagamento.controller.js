@@ -4,6 +4,7 @@ import db from "../config/db.js";
    CRIAR PAGAMENTO
 ========================= */
 export const criarPagamento = async (req, res) => {
+	 console.log("BODY:", req.body);
 	let client;
 
 	try {
