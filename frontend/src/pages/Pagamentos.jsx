@@ -208,11 +208,11 @@ export default function Pagamentos() {
           </div>
         </div>
 
-        {/* ================= TABELA DE PAGAMENTOS ================= */}
+       {/* ================= TABELA DE PAGAMENTOS ================= */}
         <table className="table table-striped">
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Produto</th>
               <th>Valor</th>
               <th>Status</th>
               <th>Ações</th>
@@ -221,7 +221,8 @@ export default function Pagamentos() {
           <tbody>
             {listaPaginada.map(p => (
               <tr key={p.id}>
-                <td>{p.id}</td>
+                {/* Pega o nome do produto do item_venda */}
+                <td>{p.itens && p.itens.length > 0 ? p.itens.map(i => i.produto).join(", ") : "-"}</td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
                 <td className={getStatusClass(p.status)}>{p.status}</td>
                 <td>
@@ -232,18 +233,26 @@ export default function Pagamentos() {
             ))}
           </tbody>
         </table>
-
+        
         {/* ================= TABELA DE PARCELAS ================= */}
         {parcelasTabela.length > 0 && (
           <div className="card p-3 mt-3">
             <h5>Parcelas</h5>
             <table className="table">
+              <thead>
+                <tr>
+                  <th>Nº Parcela</th>
+                  <th>Valor</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
               <tbody>
                 {parcelasTabela.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
-                    <td>R$ {p.valor}</td>
-                    <td>{p.status}</td>
+                    <td>R$ {Number(p.valor).toFixed(2)}</td>
+                    <td className={getStatusClass(p.status)}>{p.status}</td>
                     <td>
                       <button className="btn btn-primary btn-sm" onClick={() => { setEditarParcela(p); setNovoStatusParcela(p.status); }}>Editar</button>
                     </td>
@@ -253,6 +262,7 @@ export default function Pagamentos() {
             </table>
           </div>
         )}
+
 
         {/* ================= MODAL PAGAMENTO ================= */}
         {editarPagamento && (
