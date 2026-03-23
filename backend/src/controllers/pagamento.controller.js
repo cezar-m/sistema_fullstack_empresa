@@ -122,3 +122,50 @@ export const marcarComoPago = async (req, res) => {
 		res.status(500).json({ erro: err.message });
 	}
 };
+
+export const listarParcelasPorPagamento = async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		const result = await db.query(
+			`SELECT 
+				id,
+				numero_parcela,
+				valor,
+				data_vencimento,
+				status
+			 FROM parcelas
+			 WHERE id_pagamento = $1
+			 ORDER BY numero_parcela`,
+			[id]
+		);
+
+		res.json(result.rows);
+
+	} catch (err) {
+		console.error("ERRO PARCELAS:", err);
+		res.status(500).json({ erro: err.message });
+	}
+};
+
+export const atualizarParcela = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { status } = req.body;
+
+		if (!id || !status) {
+			return res.status(400).json({ erro: "Dados inválidos" });
+		}
+
+		await db.query(
+			`UPDATE parcelas SET status = $1 WHERE id = $2`,
+			[status, id]
+		);
+
+		res.json({ sucesso: true });
+
+	} catch (err) {
+		console.error("ERRO UPDATE PARCELA:", err);
+		res.status(500).json({ erro: err.message });
+	}
+};
