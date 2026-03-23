@@ -7,7 +7,7 @@ export const criarPagamento = async (req, res) => {
   console.log("BODY:", req.body);
 
   let client;
-
+  
   try {
     client = await db.connect();
     await client.query("BEGIN");
