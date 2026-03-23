@@ -18,7 +18,6 @@ export const criarVenda = async (req, res) => {
     const id_usuario = req.user.id;
     const { itens } = req.body;
 
-    // 🔥 VALIDAÇÃO
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({ erro: "Itens obrigatórios" });
@@ -26,7 +25,6 @@ export const criarVenda = async (req, res) => {
 
     let total = 0;
 
-    // 🔥 CRIA VENDA
     const vendaResult = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW())
@@ -36,19 +34,41 @@ export const criarVenda = async (req, res) => {
 
     const id_venda = vendaResult.rows[0].id;
 
-    // 🔥 PROCESSA ITENS
+    /* =========================
+       PROCESSAR ITENS
+    ========================== */
     for (const item of itens) {
 
-      const idProduto = Number(item.id_produto);
+      let idProduto = null;
       const quantidade = Number(item.quantidade);
 
-      if (!idProduto || !quantidade) {
+      // 🔥 ACEITA ID OU NOME
+      if (item.id_produto) {
+        idProduto = Number(item.id_produto);
+
+      } else if (item.nome) {
+        const prod = await client.query(
+          `SELECT id FROM produtos 
+           WHERE LOWER(TRIM(nome)) = LOWER($1)
+           LIMIT 1`,
+          [item.nome.trim()]
+        );
+
+        if (prod.rows.length === 0) {
+          throw new Error(`Produto "${item.nome}" não encontrado`);
+        }
+
+        idProduto = prod.rows[0].id;
+      }
+
+      // 🔥 VALIDAÇÃO REAL
+      if (!idProduto || !quantidade || quantidade <= 0) {
         throw new Error("Produto ou quantidade inválidos");
       }
 
       // 🔥 BUSCA PRODUTO
       const prod = await client.query(
-        `SELECT id, preco FROM produtos WHERE id = $1`,
+        `SELECT id, nome, preco FROM produtos WHERE id = $1`,
         [idProduto]
       );
 
@@ -58,20 +78,20 @@ export const criarVenda = async (req, res) => {
 
       const produto = prod.rows[0];
 
-      // 🔥 VERIFICA ESTOQUE
+      // 🔥 ESTOQUE
       const estoque = await client.query(
         `SELECT quantidade FROM estoque WHERE id_produto = $1`,
         [idProduto]
       );
 
       if (estoque.rows.length === 0) {
-        throw new Error("Produto sem estoque");
+        throw new Error(`Produto "${produto.nome}" sem estoque`);
       }
 
       const estoqueAtual = Number(estoque.rows[0].quantidade);
 
       if (quantidade > estoqueAtual) {
-        throw new Error("Estoque insuficiente");
+        throw new Error(`Estoque insuficiente para "${produto.nome}"`);
       }
 
       const preco = Number(produto.preco);
@@ -123,6 +143,7 @@ export const criarVenda = async (req, res) => {
     if (client) client.release();
   }
 };
+
 
 /* =========================
    LISTAR VENDAS
