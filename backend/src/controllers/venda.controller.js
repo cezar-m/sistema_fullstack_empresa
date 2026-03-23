@@ -130,9 +130,30 @@ export const criarVenda = async (req, res) => {
 export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT * FROM vendas
-       WHERE id_usuario = $1
-       ORDER BY id DESC`,
+      `
+      SELECT 
+        v.id,
+        v.total,
+        v.data_venda,
+
+        json_agg(
+          json_build_object(
+            'produto', p.nome,
+            'quantidade', iv.quantidade,
+            'preco', iv.preco_unitario
+          )
+        ) AS itens
+
+      FROM vendas v
+
+      LEFT JOIN itens_venda iv ON iv.id_venda = v.id
+      LEFT JOIN produtos p ON p.id = iv.id_produto
+
+      WHERE v.id_usuario = $1
+
+      GROUP BY v.id
+      ORDER BY v.id DESC
+      `,
       [req.user.id]
     );
 
