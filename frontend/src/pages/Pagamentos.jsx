@@ -235,77 +235,260 @@ export default function Pagamentos() {
   const listaPaginada = pagamentos.slice(inicio, inicio + itensPorPagina);
 
   return (
-    <DashboardLayout>
+  <DashboardLayout>
 
-      <div className="container mt-4">
+    <div className="container mt-4">
 
-        <h3>Pagamentos</h3>
+      <h3>Pagamentos</h3>
 
-        {mensagem && (
-          <div className="alert alert-info">{mensagem}</div>
-        )}
+      {mensagem && (
+        <div className="alert alert-info">{mensagem}</div>
+      )}
 
-        {/* FORM */}
-        <div className="card p-3 mb-3">
+      {/* ================= FORM ================= */}
+      <div className="card p-3 mb-3">
 
-          <div className="row g-2">
+        <div className="row g-2">
 
-            {/* 🔥 NOVO SELECT VENDA */}
-            <div className="col-md-3">
-              <select className="form-select"
-                value={vendaId}
-                onChange={(e) => setVendaId(e.target.value)}
-              >
-                <option value="">Venda</option>
-                {vendas.map(v => (
-                  <option key={v.id} value={v.id}>
-                    Venda #{v.id} - R$ {Number(v.total).toFixed(2)}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* ✅ SELECT VENDA COM DETALHES */}
+          <div className="col-md-4">
+            <select
+              className="form-select"
+              value={vendaId}
+              onChange={(e) => setVendaId(Number(e.target.value))}
+            >
+              <option value="">Selecione a venda</option>
 
-            {/* 🔥 MANTIDO PRODUTO MAS NÃO USA MAIS */}
-            <div className="col-md-2">
-              <input className="form-control" value={valor.toFixed(2)} readOnly />
-            </div>
-
-            <div className="col-md-3">
-              <select className="form-select"
-                value={formaPagamento}
-                onChange={(e) => setFormaPagamento(e.target.value)}
-              >
-                <option value="">Forma</option>
-                {formas.map(f => (
-                  <option key={f.id} value={f.id}>{f.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-md-2">
-              <input type="number"
-                className="form-control"
-                value={qtdParcelas}
-                onChange={(e) => setQtdParcelas(Number(e.target.value))}
-              />
-            </div>
-
+              {vendas.map(v => (
+                <option key={v.id} value={v.id}>
+                  #{v.id} - R$ {Number(v.total).toFixed(2)}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="text-center mt-3">
-            <button className="btn btn-success px-4"
-              onClick={criarPagamento}
-              disabled={loading}
+          {/* ✅ VALOR */}
+          <div className="col-md-2">
+            <input
+              className="form-control"
+              value={`R$ ${Number(valor).toFixed(2)}`}
+              readOnly
+            />
+          </div>
+
+          {/* ✅ FORMA */}
+          <div className="col-md-3">
+            <select
+              className="form-select"
+              value={formaPagamento}
+              onChange={(e) => setFormaPagamento(Number(e.target.value))}
             >
-              {loading ? "Salvando..." : "Salvar"}
-            </button>
+              <option value="">Forma</option>
+              {formas.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* ✅ PARCELAS */}
+          <div className="col-md-2">
+            <input
+              type="number"
+              className="form-control"
+              value={qtdParcelas}
+              onChange={(e) => setQtdParcelas(Number(e.target.value))}
+              min="1"
+            />
           </div>
 
         </div>
 
-        {/* RESTO DO SEU CÓDIGO CONTINUA IGUAL (tabela, modais, etc) */}
+        <div className="text-center mt-3">
+          <button
+            className="btn btn-success px-4"
+            onClick={criarPagamento}
+            disabled={loading}
+          >
+            {loading ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
 
       </div>
-    </DashboardLayout>
-  );
-}
+
+      {/* ================= TABELA ================= */}
+      <table className="table table-striped">
+        <thead>
+          <tr>
+            <th>Venda</th>
+            <th>Valor</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {listaPaginada.map(p => (
+            <tr key={p.id}>
+              <td>#{p.venda_id}</td>
+              <td>R$ {Number(p.valor).toFixed(2)}</td>
+              <td className={getStatusClass(p.status)}>
+                {p.status}
+              </td>
+
+              <td>
+                <button
+                  className="btn btn-info btn-sm me-2"
+                  onClick={() => abrirParcelas(p)}
+                >
+                  Parcelas
+                </button>
+
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setEditarPagamento(p);
+                    setNovoStatus(p.status);
+                  }}
+                >
+                  Editar
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* ================= PARCELAS ================= */}
+      {parcelasTabela.length > 0 && (
+        <div className="card mt-4 p-3">
+          <h5>Parcelas</h5>
+
+          <table className="table table-bordered">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Valor</th>
+                <th>Vencimento</th>
+                <th>Status</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {parcelasTabela.map(p => (
+                <tr key={p.id}>
+                  <td>{p.numero_parcela}</td>
+                  <td>R$ {Number(p.valor).toFixed(2)}</td>
+                  <td>
+                    {new Date(p.data_vencimento)
+                      .toLocaleDateString("pt-BR")}
+                  </td>
+                  <td className={getStatusClass(p.status)}>
+                    {p.status}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        setEditarParcela(p);
+                        setNovoStatusParcela(p.status);
+                      }}
+                    >
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ================= MODAL PAGAMENTO ================= */}
+      {editarPagamento && (
+        <div className="modal fade show d-block" style={{ background: "#00000088" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+
+              <div className="modal-header">
+                <h5>Editar Pagamento</h5>
+                <button className="btn-close"
+                  onClick={() => setEditarPagamento(null)} />
+              </div>
+
+              <div className="modal-body">
+                <select
+                  className="form-select"
+                  value={novoStatus}
+                  onChange={(e) => setNovoStatus(e.target.value)}
+                >
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary"
+                  onClick={() => setEditarPagamento(null)}>
+                  Fechar
+                </button>
+
+                <button className="btn btn-primary"
+                  onClick={salvarEdicao}>
+                  Salvar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PARCELA ================= */}
+      {editarParcela && (
+        <div className="modal fade show d-block" style={{ background: "#00000088" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+
+              <div className="modal-header">
+                <h5>Editar Parcela</h5>
+                <button className="btn-close"
+                  onClick={() => setEditarParcela(null)} />
+              </div>
+
+              <div className="modal-body">
+                <select
+                  className="form-select"
+                  value={novoStatusParcela}
+                  onChange={(e) => setNovoStatusParcela(e.target.value)}
+                >
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary"
+                  onClick={() => setEditarParcela(null)}>
+                  Fechar
+                </button>
+
+                <button className="btn btn-primary"
+                  onClick={salvarEdicaoParcela}>
+                  Salvar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+
+  </DashboardLayout>
+);
