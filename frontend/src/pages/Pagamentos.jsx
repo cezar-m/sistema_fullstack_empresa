@@ -32,8 +32,6 @@ export default function Pagamentos() {
 
   const [parcelasTabela, setParcelasTabela] = useState([]);
 
-  console.log("BODY:", req.body);
-
   useEffect(() => {
     if (mensagem) {
       const timer = setTimeout(() => {
