@@ -31,6 +31,9 @@ export default function Pagamentos() {
   const [pagina, setPagina] = useState(1);
   const itensPorPagina = 5;
 
+  /* =========================
+     LOAD
+  ========================= */
   useEffect(() => {
     carregar();
   }, []);
@@ -60,7 +63,7 @@ export default function Pagamentos() {
   }, [produtoId, quantidade, produtos]);
 
   /* =========================
-     PARCELAS
+     GERAR PARCELAS
   ========================= */
   useEffect(() => {
 
@@ -97,7 +100,7 @@ export default function Pagamentos() {
   }, [qtdParcelas, valor]);
 
   /* =========================
-     CRIAR
+     CRIAR PAGAMENTO
   ========================= */
   const criarPagamento = async () => {
 
@@ -108,20 +111,22 @@ export default function Pagamentos() {
     try {
       setLoading(true);
 
+      // 🔥 cria venda
       const venda = await api.post("/vendas", {
-        id_produto: produtoId,
+        id_produto: Number(produtoId),
         quantidade
       });
 
       const id_venda = venda.data.id;
 
+      // 🔥 cria pagamento
       await api.post("/pagamentos", {
         id_venda,
-        id_forma_pagamento: formaPagamento,
+        id_forma_pagamento: Number(formaPagamento),
         parcelas
       });
 
-      setMensagem("Criado com sucesso");
+      setMensagem("Sucesso!");
 
       setProdutoId("");
       setQuantidade(1);
@@ -146,7 +151,7 @@ export default function Pagamentos() {
     try {
       const res = await api.get(`/pagamentos/${p.id}/parcelas`);
       setParcelasTabela(res.data || []);
-    } catch (err) {
+    } catch {
       setMensagem("Erro ao carregar parcelas");
     }
   };
@@ -211,12 +216,13 @@ export default function Pagamentos() {
 
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
-        {/* FORM */}
+        {/* ================= FORM ================= */}
         <div className="card p-3 mb-3">
           <div className="row g-2">
 
             <div className="col-md-3">
-              <select className="form-select" value={produtoId}
+              <select className="form-select"
+                value={produtoId}
                 onChange={(e) => setProdutoId(e.target.value)}>
                 <option value="">Produto</option>
                 {produtos.map(p => (
@@ -230,6 +236,7 @@ export default function Pagamentos() {
             <div className="col-md-2">
               <input type="number" className="form-control"
                 value={quantidade}
+                min="1"
                 onChange={(e) => setQuantidade(Number(e.target.value))} />
             </div>
 
@@ -252,6 +259,7 @@ export default function Pagamentos() {
             <div className="col-md-2">
               <input type="number" className="form-control"
                 value={qtdParcelas}
+                min="1"
                 onChange={(e) => setQtdParcelas(Number(e.target.value))} />
             </div>
 
@@ -259,13 +267,14 @@ export default function Pagamentos() {
 
           <div className="text-center mt-3">
             <button className="btn btn-success"
-              onClick={criarPagamento}>
+              onClick={criarPagamento}
+              disabled={loading}>
               {loading ? "Salvando..." : "Salvar"}
             </button>
           </div>
         </div>
 
-        {/* TABELA */}
+        {/* ================= TABELA ================= */}
         <table className="table table-striped">
           <thead>
             <tr>
@@ -281,7 +290,9 @@ export default function Pagamentos() {
               <tr key={p.id}>
                 <td>{p.id}</td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
-                <td className={getStatusClass(p.status)}>{p.status}</td>
+                <td className={getStatusClass(p.status)}>
+                  {p.status}
+                </td>
 
                 <td>
                   <button className="btn btn-info btn-sm me-2"
@@ -302,7 +313,7 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* PARCELAS */}
+        {/* ================= PARCELAS ================= */}
         {parcelasTabela.length > 0 && (
           <div className="card p-3 mt-3">
             <h5>Parcelas</h5>
@@ -330,7 +341,7 @@ export default function Pagamentos() {
           </div>
         )}
 
-        {/* MODAL PAGAMENTO */}
+        {/* ================= MODAL PAGAMENTO ================= */}
         {editarPagamento && (
           <div className="modal d-block" style={{ background: "#0008" }}>
             <div className="modal-dialog">
@@ -363,7 +374,7 @@ export default function Pagamentos() {
           </div>
         )}
 
-        {/* MODAL PARCELA */}
+        {/* ================= MODAL PARCELA ================= */}
         {editarParcela && (
           <div className="modal d-block" style={{ background: "#0008" }}>
             <div className="modal-dialog">
