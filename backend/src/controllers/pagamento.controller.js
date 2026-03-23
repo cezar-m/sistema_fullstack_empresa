@@ -94,25 +94,35 @@ export const listarPagamentosPorId = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT
-        p.id,
-        p.valor,
-        p.status,
-        p.data_pagamento,
-        v.id AS venda_id
-      FROM pagamentos p
-      JOIN vendas v ON v.id = p.id_venda
-      WHERE v.id_usuario = $1
-      ORDER BY p.id DESC`,
+         p.id,
+         p.valor,
+         p.status,
+         p.data_pagamento,
+         v.id AS venda_id,
+         json_agg(
+           json_build_object(
+             'produto', pr.nome,          -- aqui pega o nome do produto
+             'quantidade', iv.quantidade,
+             'preco', iv.preco_unitario
+           )
+         ) AS itens
+       FROM pagamentos p
+       JOIN vendas v ON v.id = p.id_venda
+       JOIN itens_venda iv ON iv.id_venda = v.id
+       JOIN produtos pr ON pr.id = iv.id_produto
+       WHERE v.id_usuario = $1
+       GROUP BY p.id, v.id
+       ORDER BY p.id DESC`,
       [req.user.id]
     );
 
     return res.json(result.rows);
-
   } catch (err) {
-    console.error("ERRO LISTAR:", err);
+    console.error("ERRO LISTAR PAGAMENTOS:", err);
     return res.status(500).json({ erro: err.message });
   }
 };
+
 
 /* =========================
    MARCAR COMO PAGO
