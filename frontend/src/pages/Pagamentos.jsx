@@ -3,7 +3,6 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import api from "../api/api";
 
 export default function Pagamentos() {
-
   const [produtos, setProdutos] = useState([]);
   const [formas, setFormas] = useState([]);
   const [pagamentos, setPagamentos] = useState([]);
@@ -13,15 +12,12 @@ export default function Pagamentos() {
   const [formaPagamento, setFormaPagamento] = useState("");
 
   const [valor, setValor] = useState(0);
-
   const [qtdParcelas, setQtdParcelas] = useState(1);
   const [parcelas, setParcelas] = useState([]);
-
   const [parcelasTabela, setParcelasTabela] = useState([]);
 
   const [editarPagamento, setEditarPagamento] = useState(null);
   const [novoStatus, setNovoStatus] = useState("pendente");
-
   const [editarParcela, setEditarParcela] = useState(null);
   const [novoStatusParcela, setNovoStatusParcela] = useState("pendente");
 
@@ -31,9 +27,7 @@ export default function Pagamentos() {
   const [pagina, setPagina] = useState(1);
   const itensPorPagina = 5;
 
-  /* =========================
-     LOAD
-  ========================= */
+  /* ========================= LOAD ========================= */
   useEffect(() => {
     carregar();
   }, []);
@@ -48,25 +42,19 @@ export default function Pagamentos() {
 
       const resPag = await api.get("/pagamentos");
       setPagamentos(resPag.data || []);
-
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao carregar dados:", err);
     }
   };
 
-  /* =========================
-     CALC VALOR
-  ========================= */
+  /* ========================= CALC VALOR ========================= */
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
     setValor(produto ? Number(produto.preco) * quantidade : 0);
   }, [produtoId, quantidade, produtos]);
 
-  /* =========================
-     GERAR PARCELAS
-  ========================= */
+  /* ========================= GERAR PARCELAS ========================= */
   useEffect(() => {
-
     if (!valor || qtdParcelas <= 1) {
       setParcelas([]);
       return;
@@ -76,13 +64,8 @@ export default function Pagamentos() {
     let soma = 0;
 
     for (let i = 0; i < qtdParcelas; i++) {
-
       let valorParcela = Number((valor / qtdParcelas).toFixed(2));
-
-      if (i === qtdParcelas - 1) {
-        valorParcela = Number((valor - soma).toFixed(2));
-      }
-
+      if (i === qtdParcelas - 1) valorParcela = Number((valor - soma).toFixed(2));
       soma += valorParcela;
 
       const venc = new Date();
@@ -96,25 +79,18 @@ export default function Pagamentos() {
     }
 
     setParcelas(lista);
-
   }, [qtdParcelas, valor]);
 
-  /* =========================
-     CRIAR PAGAMENTO
-  ========================= */
+  /* ========================= CRIAR PAGAMENTO ========================= */
   const criarPagamento = async () => {
-
-    if (!produtoId || !formaPagamento) {
-      return setMensagem("Preencha tudo");
-    }
+    if (!produtoId || !formaPagamento) return setMensagem("Preencha tudo");
 
     try {
       setLoading(true);
 
-      // 🔥 cria venda
+      // 🔥 cria venda CORRIGIDO (envia itens)
       const venda = await api.post("/vendas", {
-        id_produto: Number(produtoId),
-        quantidade
+        itens: [{ id_produto: Number(produtoId), quantidade }],
       });
 
       const id_venda = venda.data.id;
@@ -123,11 +99,10 @@ export default function Pagamentos() {
       await api.post("/pagamentos", {
         id_venda,
         id_forma_pagamento: Number(formaPagamento),
-        parcelas
+        parcelas,
       });
 
-      setMensagem("Sucesso!");
-
+      setMensagem("Venda e pagamento cadastrados com sucesso!");
       setProdutoId("");
       setQuantidade(1);
       setFormaPagamento("");
@@ -135,18 +110,15 @@ export default function Pagamentos() {
       setParcelas([]);
 
       carregar();
-
     } catch (err) {
-      console.error(err);
-      setMensagem(err.response?.data?.erro || "Erro");
+      console.error("Erro criarPagamento:", err);
+      setMensagem(err.response?.data?.erro || "Erro ao criar pagamento");
     } finally {
       setLoading(false);
     }
   };
 
-  /* =========================
-     ABRIR PARCELAS
-  ========================= */
+  /* ========================= ABRIR PARCELAS ========================= */
   const abrirParcelas = async (p) => {
     try {
       const res = await api.get(`/pagamentos/${p.id}/parcelas`);
@@ -156,42 +128,25 @@ export default function Pagamentos() {
     }
   };
 
-  /* =========================
-     EDITAR PAGAMENTO
-  ========================= */
+  /* ========================= EDITAR PAGAMENTO ========================= */
   const salvarEdicao = async () => {
     try {
-      await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
-        status: novoStatus
-      });
-
+      await api.put(`/pagamentos/pago/${editarPagamento.id}`, { status: novoStatus });
       setEditarPagamento(null);
       carregar();
-
     } catch {
-      setMensagem("Erro ao editar");
+      setMensagem("Erro ao editar pagamento");
     }
   };
 
-  /* =========================
-     EDITAR PARCELA
-  ========================= */
+  /* ========================= EDITAR PARCELA ========================= */
   const salvarEdicaoParcela = async () => {
     try {
-      await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
-        status: novoStatusParcela
-      });
-
+      await api.put(`/pagamentos/parcelas/${editarParcela.id}`, { status: novoStatusParcela });
       setEditarParcela(null);
-
       setParcelasTabela(prev =>
-        prev.map(p =>
-          p.id === editarParcela.id
-            ? { ...p, status: novoStatusParcela }
-            : p
-        )
+        prev.map(p => (p.id === editarParcela.id ? { ...p, status: novoStatusParcela } : p))
       );
-
     } catch {
       setMensagem("Erro ao editar parcela");
     }
@@ -204,77 +159,56 @@ export default function Pagamentos() {
     return "";
   };
 
+  /* ========================= PAGINAÇÃO ========================= */
   const inicio = (pagina - 1) * itensPorPagina;
   const listaPaginada = pagamentos.slice(inicio, inicio + itensPorPagina);
 
   return (
     <DashboardLayout>
-
       <div className="container mt-4">
-
         <h3>Pagamentos</h3>
-
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
-        {/* ================= FORM ================= */}
+        {/* ================= FORMULARIO ================= */}
         <div className="card p-3 mb-3">
           <div className="row g-2">
-
             <div className="col-md-3">
-              <select className="form-select"
-                value={produtoId}
-                onChange={(e) => setProdutoId(e.target.value)}>
+              <select className="form-select" value={produtoId} onChange={(e) => setProdutoId(e.target.value)}>
                 <option value="">Produto</option>
                 {produtos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome} - R$ {p.preco}
-                  </option>
+                  <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco}</option>
                 ))}
               </select>
             </div>
 
             <div className="col-md-2">
-              <input type="number" className="form-control"
-                value={quantidade}
-                min="1"
-                onChange={(e) => setQuantidade(Number(e.target.value))} />
+              <input type="number" className="form-control" value={quantidade} min="1" onChange={(e) => setQuantidade(Number(e.target.value))} />
             </div>
 
             <div className="col-md-2">
-              <input className="form-control"
-                value={`R$ ${valor.toFixed(2)}`} readOnly />
+              <input className="form-control" value={`R$ ${valor.toFixed(2)}`} readOnly />
             </div>
 
             <div className="col-md-3">
-              <select className="form-select"
-                value={formaPagamento}
-                onChange={(e) => setFormaPagamento(e.target.value)}>
+              <select className="form-select" value={formaPagamento} onChange={(e) => setFormaPagamento(e.target.value)}>
                 <option value="">Forma</option>
-                {formas.map(f => (
-                  <option key={f.id} value={f.id}>{f.nome}</option>
-                ))}
+                {formas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
 
             <div className="col-md-2">
-              <input type="number" className="form-control"
-                value={qtdParcelas}
-                min="1"
-                onChange={(e) => setQtdParcelas(Number(e.target.value))} />
+              <input type="number" className="form-control" value={qtdParcelas} min="1" onChange={(e) => setQtdParcelas(Number(e.target.value))} />
             </div>
-
           </div>
 
           <div className="text-center mt-3">
-            <button className="btn btn-success"
-              onClick={criarPagamento}
-              disabled={loading}>
+            <button className="btn btn-success" onClick={criarPagamento} disabled={loading}>
               {loading ? "Salvando..." : "Salvar"}
             </button>
           </div>
         </div>
 
-        {/* ================= TABELA ================= */}
+        {/* ================= TABELA DE PAGAMENTOS ================= */}
         <table className="table table-striped">
           <thead>
             <tr>
@@ -284,40 +218,25 @@ export default function Pagamentos() {
               <th>Ações</th>
             </tr>
           </thead>
-
           <tbody>
             {listaPaginada.map(p => (
               <tr key={p.id}>
                 <td>{p.id}</td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
-                <td className={getStatusClass(p.status)}>
-                  {p.status}
-                </td>
-
+                <td className={getStatusClass(p.status)}>{p.status}</td>
                 <td>
-                  <button className="btn btn-info btn-sm me-2"
-                    onClick={() => abrirParcelas(p)}>
-                    Parcelas
-                  </button>
-
-                  <button className="btn btn-primary btn-sm"
-                    onClick={() => {
-                      setEditarPagamento(p);
-                      setNovoStatus(p.status);
-                    }}>
-                    Editar
-                  </button>
+                  <button className="btn btn-info btn-sm me-2" onClick={() => abrirParcelas(p)}>Parcelas</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setEditarPagamento(p); setNovoStatus(p.status); }}>Editar</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {/* ================= PARCELAS ================= */}
+        {/* ================= TABELA DE PARCELAS ================= */}
         {parcelasTabela.length > 0 && (
           <div className="card p-3 mt-3">
             <h5>Parcelas</h5>
-
             <table className="table">
               <tbody>
                 {parcelasTabela.map(p => (
@@ -326,13 +245,7 @@ export default function Pagamentos() {
                     <td>R$ {p.valor}</td>
                     <td>{p.status}</td>
                     <td>
-                      <button className="btn btn-primary btn-sm"
-                        onClick={() => {
-                          setEditarParcela(p);
-                          setNovoStatusParcela(p.status);
-                        }}>
-                        Editar
-                      </button>
+                      <button className="btn btn-primary btn-sm" onClick={() => { setEditarParcela(p); setNovoStatusParcela(p.status); }}>Editar</button>
                     </td>
                   </tr>
                 ))}
@@ -346,29 +259,16 @@ export default function Pagamentos() {
           <div className="modal d-block" style={{ background: "#0008" }}>
             <div className="modal-dialog">
               <div className="modal-content p-3">
-
                 <h5>Editar Pagamento</h5>
-
-                <select className="form-select"
-                  value={novoStatus}
-                  onChange={(e) => setNovoStatus(e.target.value)}>
+                <select className="form-select" value={novoStatus} onChange={(e) => setNovoStatus(e.target.value)}>
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
                   <option value="cancelado">Cancelado</option>
                 </select>
-
                 <div className="mt-3">
-                  <button className="btn btn-secondary me-2"
-                    onClick={() => setEditarPagamento(null)}>
-                    Fechar
-                  </button>
-
-                  <button className="btn btn-primary"
-                    onClick={salvarEdicao}>
-                    Salvar
-                  </button>
+                  <button className="btn btn-secondary me-2" onClick={() => setEditarPagamento(null)}>Fechar</button>
+                  <button className="btn btn-primary" onClick={salvarEdicao}>Salvar</button>
                 </div>
-
               </div>
             </div>
           </div>
@@ -379,36 +279,21 @@ export default function Pagamentos() {
           <div className="modal d-block" style={{ background: "#0008" }}>
             <div className="modal-dialog">
               <div className="modal-content p-3">
-
                 <h5>Editar Parcela</h5>
-
-                <select className="form-select"
-                  value={novoStatusParcela}
-                  onChange={(e) => setNovoStatusParcela(e.target.value)}>
+                <select className="form-select" value={novoStatusParcela} onChange={(e) => setNovoStatusParcela(e.target.value)}>
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
                   <option value="cancelado">Cancelado</option>
                 </select>
-
                 <div className="mt-3">
-                  <button className="btn btn-secondary me-2"
-                    onClick={() => setEditarParcela(null)}>
-                    Fechar
-                  </button>
-
-                  <button className="btn btn-primary"
-                    onClick={salvarEdicaoParcela}>
-                    Salvar
-                  </button>
+                  <button className="btn btn-secondary me-2" onClick={() => setEditarParcela(null)}>Fechar</button>
+                  <button className="btn btn-primary" onClick={salvarEdicaoParcela}>Salvar</button>
                 </div>
-
               </div>
             </div>
           </div>
         )}
-
       </div>
-
     </DashboardLayout>
   );
 }
