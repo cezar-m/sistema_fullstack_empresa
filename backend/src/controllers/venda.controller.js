@@ -1,96 +1,97 @@
 import db from "../config/db.js";
 
-// Criar venda
+// ================= CRIAR VENDA =================
 export const criarVenda = async (req, res) => {
   const client = await db.connect();
 
   try {
     await client.query("BEGIN");
 
-    const id_usuario = req.user?.id;
-    if (!id_usuario) throw new Error("Usuário não autenticado");
-
     const { itens } = req.body;
-    if (!Array.isArray(itens) || itens.length === 0) throw new Error("Itens obrigatórios");
+
+    if (!Array.isArray(itens) || itens.length === 0) {
+      throw new Error("Itens obrigatórios");
+    }
 
     let total = 0;
 
-    // Criar venda
     const vendaRes = await client.query(
-      `INSERT INTO vendas (id_usuario, total, data_venda) VALUES ($1, 0, NOW()) RETURNING id`,
-      [id_usuario]
+      `INSERT INTO vendas (total, data_venda)
+       VALUES (0, NOW()) RETURNING id`
     );
+
     const id_venda = vendaRes.rows[0].id;
 
-    // Processar itens
     for (const item of itens) {
-      const id_produto = parseInt(item.id_produto, 10);
-      const quantidade = parseInt(item.quantidade, 10);
+      const id_produto = Number(item.id_produto);
+      const quantidade = Number(item.quantidade);
 
-      if (!Number.isInteger(id_produto) || id_produto <= 0 || !Number.isInteger(quantidade) || quantidade <= 0) {
-        throw new Error(`Produto ou quantidade inválidos: ${JSON.stringify(item)}`);
+      if (isNaN(id_produto) || quantidade <= 0) {
+        throw new Error("Produto ou quantidade inválidos");
       }
 
-      // Buscar produto
-      const prodRes = await client.query(
-        "SELECT id, nome, preco FROM produtos WHERE id=$1",
+      const prod = await client.query(
+        "SELECT nome, preco FROM produtos WHERE id=$1",
         [id_produto]
       );
-      if (prodRes.rows.length === 0) throw new Error(`Produto ID ${id_produto} não encontrado`);
-      const produto = prodRes.rows[0];
 
-      // Verificar estoque
-      const estoqueRes = await client.query(
+      if (prod.rows.length === 0) {
+        throw new Error("Produto não encontrado");
+      }
+
+      const estoque = await client.query(
         "SELECT quantidade FROM estoque WHERE id_produto=$1",
         [id_produto]
       );
-      if (estoqueRes.rows.length === 0) throw new Error(`Produto "${produto.nome}" sem estoque`);
-      if (quantidade > Number(estoqueRes.rows[0].quantidade)) throw new Error(`Estoque insuficiente para "${produto.nome}"`);
 
-      const subtotal = Number(produto.preco) * quantidade;
-      total += subtotal;
+      if (quantidade > estoque.rows[0].quantidade) {
+        throw new Error("Estoque insuficiente");
+      }
 
-      // Inserir item da venda
+      const preco = Number(prod.rows[0].preco);
+      total += preco * quantidade;
+
       await client.query(
-        "INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario) VALUES ($1,$2,$3,$4)",
-        [id_venda, id_produto, quantidade, Number(produto.preco)]
+        `INSERT INTO itens_venda (id_venda,id_produto,quantidade,preco_unitario)
+         VALUES ($1,$2,$3,$4)`,
+        [id_venda, id_produto, quantidade, preco]
       );
 
-      // Atualizar estoque
       await client.query(
-        "UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto=$2",
+        `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto=$2`,
         [quantidade, id_produto]
       );
     }
 
-    // Atualizar total da venda
-    await client.query("UPDATE vendas SET total=$1 WHERE id=$2", [total, id_venda]);
+    await client.query(
+      "UPDATE vendas SET total=$1 WHERE id=$2",
+      [total, id_venda]
+    );
+
     await client.query("COMMIT");
 
-    return res.json({ sucesso: true, id: id_venda, total });
+    res.json({ sucesso: true });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("ERRO CRIAR VENDA:", err);
-    return res.status(400).json({ erro: err.message });
+    console.error(err);
+    res.status(400).json({ erro: err.message });
   } finally {
     client.release();
   }
 };
 
-// Listar vendas
+// ================= LISTAR =================
 export const listarVendas = async (req, res) => {
   try {
-    const result = await db.query(
-      `
+    const result = await db.query(`
       SELECT 
-        v.id, v.total, v.data_venda,
+        v.id,
+        v.total,
+        v.data_venda,
         COALESCE(
           json_agg(
             json_build_object(
-              'id_produto', p.id,
               'produto', p.nome,
-              'imagem', p.imagem,
-              'preco', iv.preco_unitario,
               'quantidade', iv.quantidade
             )
           ) FILTER (WHERE iv.id IS NOT NULL), '[]'
@@ -98,16 +99,13 @@ export const listarVendas = async (req, res) => {
       FROM vendas v
       LEFT JOIN itens_venda iv ON iv.id_venda=v.id
       LEFT JOIN produtos p ON p.id=iv.id_produto
-      WHERE v.id_usuario=$1
       GROUP BY v.id
       ORDER BY v.id DESC
-      `,
-      [req.user.id]
-    );
+    `);
 
-    return res.json(result.rows);
+    res.json(result.rows);
   } catch (err) {
-    console.error("ERRO LISTAR VENDAS:", err);
-    return res.status(500).json({ erro: "Erro ao listar vendas" });
+    console.error(err);
+    res.status(500).json({ erro: "Erro listar vendas" });
   }
 };
