@@ -7,7 +7,7 @@ export const criarPagamento = async (req, res) => {
   console.log("BODY:", req.body);
 
   let client;
-  
+
   try {
     client = await db.connect();
     await client.query("BEGIN");
@@ -87,6 +87,7 @@ export const criarPagamento = async (req, res) => {
   }
 };
 
+
 /* =========================
    LISTAR PAGAMENTOS
 ========================= */
@@ -112,12 +113,12 @@ export const listarPagamentosPorId = async (req, res) => {
         JOIN produtos pr ON pr.id = iv.id_produto
         WHERE v.id_usuario = $1
         GROUP BY p.id, p.valor, p.status, p.data_pagamento, v.id
-        ORDER BY p.id DESC
-      `,
+        ORDER BY p.id DESC`,
       [req.user.id]
     );
 
     return res.json(result.rows);
+
   } catch (err) {
     console.error("ERRO LISTAR PAGAMENTOS:", err);
     return res.status(500).json({ erro: err.message });
@@ -145,6 +146,7 @@ export const marcarComoPago = async (req, res) => {
   }
 };
 
+
 /* =========================
    LISTAR PARCELAS
 ========================= */
@@ -162,8 +164,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
          json_agg(
            json_build_object(
              'produto', pr.nome,
-             'quantidade', iv.quantidade,
-             'preco', iv.preco_unitario
+             'quantidade', iv.quantidade
            )
          ) AS itens
        FROM parcelas pa
