@@ -237,35 +237,33 @@ const PaginaVendas = () => {
 				</div>
 
 				{/* Resumo total por produto */}
-<div className="card shadow mt-4">
-  <div className="card-header bg-info text-white fw-bold">
-    Total Vendido por Produto
-  </div>
-  <div className="card-body">
-    {vendas.length === 0 ? (
-      <p>Nenhuma venda realizada ainda</p>
-    ) : (
-      <table className="table table-bordered">
-        <thead>
-          <tr>
-            <th>Produto</th>
-            <th>Quantidade Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {totalVendidoPorProduto().map((item, index) => (
-            <tr key={index}>
-              <td>{item.produto}</td>
-              <td>{item.quantidade}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </div>
-</div>
-
-					
+				<div className="card shadow mt-4">
+				  <div className="card-header bg-info text-white fw-bold">
+				    Total Vendido por Produto
+				  </div>
+				  <div className="card-body">
+				    {vendas.length === 0 ? (
+				      <p>Nenhuma venda realizada ainda</p>
+				    ) : (
+				      <table className="table table-bordered">
+				        <thead>
+				          <tr>
+				            <th>Produto</th>
+				            <th>Quantidade Total</th>
+				          </tr>
+				        </thead>
+				        <tbody>
+				          {totalVendidoPorProduto().map((item, index) => (
+				            <tr key={index}>
+				              <td>{item.produto}</td>
+				              <td>{item.quantidade}</td>
+				            </tr>
+				          ))}
+				        </tbody>
+				      </table>
+				    )}
+				  </div>
+				</div>
 			</div>
 		</DashboardLayout>
 	);
