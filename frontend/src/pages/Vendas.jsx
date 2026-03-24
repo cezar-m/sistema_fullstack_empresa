@@ -3,11 +3,14 @@ import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 const PaginaVendas = () => {
+  // ====================== STATES ======================
   const [produto, setProduto] = useState("");
   const [quantidade, setQuantidade] = useState(1);
   const [itens, setItens] = useState([]);
   const [vendas, setVendas] = useState([]);
   const [paginaAtual, setPaginaAtual] = useState(1);
+  const [mensagem, setMensagem] = useState("");
+  const [tipoMensagem, setTipoMensagem] = useState("");
 
   const vendasPorPagina = 10;
 
@@ -21,7 +24,7 @@ const PaginaVendas = () => {
   // ====================== ADICIONAR ITEM ======================
   const adicionarItem = () => {
     if (!produto || quantidade <= 0) return;
-    setItens([...itens, { produto, quantidade }]); // aqui garantimos que o campo seja 'produto'
+    setItens([...itens, { produto, quantidade }]); // 'produto' consistente
     setProduto("");
     setQuantidade(1);
   };
@@ -33,9 +36,12 @@ const PaginaVendas = () => {
       setItens([]);
       await listarVendas();
       setPaginaAtual(1);
-      alert("Venda realizada com sucesso!!!");
+      setMensagem("Venda realizada com sucesso!");
+      setTipoMensagem("sucesso");
     } catch (err) {
-      alert(err.response?.data?.erro || "Erro ao criar vendas");
+      console.error(err);
+      setMensagem(err.response?.data?.erro || "Erro ao criar vendas");
+      setTipoMensagem("erro");
     }
   };
 
@@ -62,17 +68,15 @@ const PaginaVendas = () => {
   // ====================== TOTAL VENDIDO POR PRODUTO ======================
   const totalVendidoPorProduto = () => {
     const total = {};
-
     vendas.forEach((venda) => {
       if (Array.isArray(venda.itens)) {
         venda.itens.forEach((item) => {
-          const nomeProduto = item.produto || "Produto Desconhecido"; // fallback
-          const quantidadeProduto = Number(item.quantidade) || 0;
-          total[nomeProduto] = (total[nomeProduto] || 0) + quantidadeProduto;
+          const nomeProduto = item.produto || "Produto Desconhecido";
+          const qtd = Number(item.quantidade) || 0;
+          total[nomeProduto] = (total[nomeProduto] || 0) + qtd;
         });
       }
     });
-
     return Object.entries(total).map(([produto, quantidade]) => ({
       produto,
       quantidade,
@@ -91,7 +95,8 @@ const PaginaVendas = () => {
     if (venda.total) return Number(venda.total);
     if (!Array.isArray(venda.itens)) return 0;
     return venda.itens.reduce(
-      (acc, item) => acc + (Number(item.preco) || 0) * (Number(item.quantidade) || 0),
+      (acc, item) =>
+        acc + (Number(item.preco) || 0) * (Number(item.quantidade) || 0),
       0
     );
   };
@@ -102,7 +107,9 @@ const PaginaVendas = () => {
       <div className="container mt-4">
         {/* ================= NOVA VENDA ================= */}
         <div className="card shadow mb-4">
-          <div className="card-header bg-primary text-white fw-bold">Nova Venda</div>
+          <div className="card-header bg-primary text-white fw-bold">
+            Nova Venda
+          </div>
           <div className="card-body">
             <div className="row g-3">
               <div className="col-md-6">
@@ -221,7 +228,9 @@ const PaginaVendas = () => {
 
         {/* ================= RESUMO TOTAL POR PRODUTO ================= */}
         <div className="card shadow mt-4">
-          <div className="card-header bg-info text-white fw-bold">Total Vendido por Produto</div>
+          <div className="card-header bg-info text-white fw-bold">
+            Total Vendido por Produto
+          </div>
           <div className="card-body">
             {vendas.length === 0 ? (
               <p>Nenhuma venda realizada ainda</p>
@@ -245,6 +254,18 @@ const PaginaVendas = () => {
             )}
           </div>
         </div>
+
+        {/* ================= MENSAGEM DE ALERTA ================= */}
+        {mensagem && (
+          <div
+            className={`alert mt-3 ${
+              tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"
+            }`}
+            role="alert"
+          >
+            {mensagem}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
