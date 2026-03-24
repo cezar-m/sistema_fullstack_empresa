@@ -26,6 +26,7 @@ export const criarPagamento = async (req, res) => {
       return res.status(400).json({ erro: "Dados incompletos" });
     }
 
+    // 🔥 BUSCA VENDA + ITENS
     const vendaResult = await client.query(
       `SELECT total FROM vendas WHERE id = $1`,
       [idVendaNum]
@@ -37,6 +38,7 @@ export const criarPagamento = async (req, res) => {
 
     const valor = Number(vendaResult.rows[0].total);
 
+    // 🔥 CRIA PAGAMENTO
     const pagamentoResult = await client.query(
       `INSERT INTO pagamentos
        (id_venda, id_forma_pagamento, valor, status, data_pagamento)
@@ -52,6 +54,31 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamentoResult.rows[0].id;
 
+    // 🔥 SE PAGAMENTO FOR PAGO → ATUALIZA ITENS_VENDA
+    if (!parcelas.length || status_pagamento === "pago") {
+
+      const itens = await client.query(
+        `SELECT id, quantidade, quantidade_paga
+         FROM itens_venda
+         WHERE id_venda = $1`,
+        [idVendaNum]
+      );
+
+      for (const item of itens.rows) {
+        const restante = item.quantidade - item.quantidade_paga;
+
+        if (restante > 0) {
+          await client.query(
+            `UPDATE itens_venda
+             SET quantidade_paga = quantidade_paga + $1
+             WHERE id = $2`,
+            [restante, item.id]
+          );
+        }
+      }
+    }
+
+    // 🔥 PARCELAS
     if (Array.isArray(parcelas) && parcelas.length > 0) {
       for (const p of parcelas) {
         await client.query(
@@ -86,6 +113,7 @@ export const criarPagamento = async (req, res) => {
     if (client) client.release();
   }
 };
+
 
 
 /* =========================
