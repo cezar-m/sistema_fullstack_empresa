@@ -1,9 +1,7 @@
 import db from "../config/db.js";
 
-// ========================= CRIAR VENDA =========================
+// Criar venda
 export const criarVenda = async (req, res) => {
-  console.log("REQ BODY:", req.body);
-console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
   let client;
   try {
     client = await db.connect();
@@ -16,10 +14,6 @@ console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
     const id_usuario = req.user.id;
 
     const { itens } = req.body;
-
-    // DEBUG: ver exatamente o que chegou
-    console.log("PAYLOAD RECEBIDO:", itens);
-
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({ erro: "Itens obrigatórios" });
@@ -27,7 +21,6 @@ console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
 
     let total = 0;
 
-    // Criar venda
     const vendaRes = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW()) RETURNING id`,
@@ -35,7 +28,6 @@ console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
     );
     const id_venda = vendaRes.rows[0].id;
 
-    // Processar itens
     for (const item of itens) {
       const idProduto = Number(item.id_produto);
       const quantidade = Number(item.quantidade);
@@ -44,41 +36,30 @@ console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
         throw new Error(`Produto ou quantidade inválidos: id=${item.id_produto}, qtd=${item.quantidade}`);
       }
 
-      // Buscar produto
-      const prodRes = await client.query(
-        `SELECT id, nome, preco FROM produtos WHERE id = $1`,
-        [idProduto]
-      );
+      const prodRes = await client.query(`SELECT id, nome, preco FROM produtos WHERE id = $1`, [idProduto]);
       if (prodRes.rows.length === 0) throw new Error(`Produto ID ${idProduto} não encontrado`);
+
       const produto = prodRes.rows[0];
 
-      // Verificar estoque
-      const estoqueRes = await client.query(
-        `SELECT quantidade FROM estoque WHERE id_produto = $1`,
-        [idProduto]
-      );
+      const estoqueRes = await client.query(`SELECT quantidade FROM estoque WHERE id_produto = $1`, [idProduto]);
       if (estoqueRes.rows.length === 0) throw new Error(`Produto "${produto.nome}" sem estoque`);
-      if (quantidade > Number(estoqueRes.rows[0].quantidade))
-        throw new Error(`Estoque insuficiente para "${produto.nome}"`);
+      if (quantidade > Number(estoqueRes.rows[0].quantidade)) throw new Error(`Estoque insuficiente para "${produto.nome}"`);
 
       const subtotal = Number(produto.preco) * quantidade;
       total += subtotal;
 
-      // Inserir item
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
         [id_venda, idProduto, quantidade, Number(produto.preco)]
       );
 
-      // Atualizar estoque
       await client.query(
         `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
         [quantidade, idProduto]
       );
     }
 
-    // Atualizar total da venda
     await client.query(`UPDATE vendas SET total = $1 WHERE id = $2`, [total, id_venda]);
     await client.query("COMMIT");
 
@@ -92,7 +73,7 @@ console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
   }
 };
 
-// ========================= LISTAR VENDAS =========================
+// Listar vendas com itens
 export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
@@ -101,7 +82,7 @@ export const listarVendas = async (req, res) => {
         v.id,
         v.total,
         v.data_venda,
-        COALESCE(json_agg(
+        json_agg(
           json_build_object(
             'id_produto', p.id,
             'produto', p.nome,
@@ -109,7 +90,7 @@ export const listarVendas = async (req, res) => {
             'preco', iv.preco_unitario,
             'quantidade', iv.quantidade
           )
-        ) FILTER (WHERE iv.id IS NOT NULL), '[]') AS itens
+        ) AS itens
       FROM vendas v
       LEFT JOIN itens_venda iv ON iv.id_venda = v.id
       LEFT JOIN produtos p ON p.id = iv.id_produto
