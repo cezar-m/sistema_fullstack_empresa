@@ -1,4 +1,3 @@
-// src/controllers/venda.controller.js
 import db from "../config/db.js";
 
 // CRIAR VENDA
@@ -17,7 +16,7 @@ export const criarVenda = async (req, res) => {
 
     let total = 0;
 
-    // Cria venda inicial com total 0
+    // Criar venda inicial
     const vendaRes = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW()) RETURNING id`,
@@ -31,7 +30,7 @@ export const criarVenda = async (req, res) => {
       if (!id_produto || quantidade <= 0)
         throw new Error("Produto ou quantidade inválidos");
 
-      // Seleciona produto e estoque com lock
+      // Seleciona produto com lock
       const prodRes = await client.query(
         `SELECT p.id, p.nome, p.preco, e.quantidade
          FROM produtos p
@@ -50,7 +49,7 @@ export const criarVenda = async (req, res) => {
 
       total += produtoDB.preco * quantidade;
 
-      // Insere item na venda
+      // Insere item
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
@@ -59,9 +58,7 @@ export const criarVenda = async (req, res) => {
 
       // Atualiza estoque
       await client.query(
-        `UPDATE estoque
-         SET quantidade = quantidade - $1
-         WHERE id_produto = $2`,
+        `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
         [quantidade, id_produto]
       );
     }
@@ -86,9 +83,7 @@ export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT 
-        v.id,
-        v.total,
-        v.data_venda,
+        v.id, v.total, v.data_venda,
         COALESCE(
           json_agg(
             json_build_object(
@@ -108,12 +103,7 @@ export const listarVendas = async (req, res) => {
       [req.user.id]
     );
 
-    const vendasFormatadas = result.rows.map(v => ({
-      ...v,
-      itens: v.itens || []
-    }));
-
-    res.json(vendasFormatadas);
+    res.json(result.rows.map(v => ({ ...v, itens: v.itens || [] })));
   } catch (err) {
     console.error("ERRO LISTAR VENDAS:", err);
     res.status(500).json({ erro: "Erro ao listar vendas" });
