@@ -10,14 +10,15 @@ export const criarVenda = async (req, res) => {
     client = await db.connect();
     await client.query("BEGIN");
 
+    // ====================== AUTENTICAÇÃO ======================
     if (!req.user || !req.user.id) {
       await client.query("ROLLBACK");
       return res.status(401).json({ erro: "Usuário não autenticado" });
     }
-
     const id_usuario = req.user.id;
-    const { itens } = req.body;
 
+    // ====================== VALIDAÇÃO DE ITENS ======================
+    const { itens } = req.body;
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({ erro: "Itens obrigatórios" });
@@ -25,125 +26,92 @@ export const criarVenda = async (req, res) => {
 
     let total = 0;
 
+    // ====================== CRIAR VENDA ======================
     const vendaResult = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW())
        RETURNING id`,
       [id_usuario]
     );
-
     const id_venda = vendaResult.rows[0].id;
 
-    /* =========================
-       PROCESSAR ITENS
-    ========================== */
+    // ====================== PROCESSAR ITENS ======================
     for (const item of itens) {
+      const quantidade = Number(item.quantidade);
+      if (!quantidade || quantidade <= 0) {
+        throw new Error("Quantidade inválida para um dos produtos");
+      }
 
       let idProduto = null;
-      const quantidade = Number(item.quantidade);
 
-      // 🔥 ACEITA ID OU NOME
+      // Usar id_produto enviado pelo frontend
       if (item.id_produto) {
         idProduto = Number(item.id_produto);
-
-      } else if (item.nome) {
-        const prod = await client.query(
-          `SELECT id FROM produtos 
-           WHERE LOWER(TRIM(nome)) = LOWER($1)
-           LIMIT 1`,
-          [item.nome.trim()]
-        );
-
-        if (prod.rows.length === 0) {
-          throw new Error(`Produto "${item.nome}" não encontrado`);
-        }
-
-        idProduto = prod.rows[0].id;
+      } else {
+        throw new Error("ID do produto obrigatório");
       }
 
-      // 🔥 VALIDAÇÃO REAL
-      if (!idProduto || !quantidade || quantidade <= 0) {
-        throw new Error("Produto ou quantidade inválidos");
-      }
-
-      // 🔥 BUSCA PRODUTO
-      const prod = await client.query(
+      // Buscar produto no banco
+      const prodRes = await client.query(
         `SELECT id, nome, preco FROM produtos WHERE id = $1`,
         [idProduto]
       );
-
-      if (prod.rows.length === 0) {
+      if (prodRes.rows.length === 0) {
         throw new Error(`Produto ID ${idProduto} não encontrado`);
       }
+      const produto = prodRes.rows[0];
 
-      const produto = prod.rows[0];
-
-      // 🔥 ESTOQUE
-      const estoque = await client.query(
+      // Verificar estoque
+      const estoqueRes = await client.query(
         `SELECT quantidade FROM estoque WHERE id_produto = $1`,
         [idProduto]
       );
-
-      if (estoque.rows.length === 0) {
+      if (estoqueRes.rows.length === 0) {
         throw new Error(`Produto "${produto.nome}" sem estoque`);
       }
-
-      const estoqueAtual = Number(estoque.rows[0].quantidade);
-
+      const estoqueAtual = Number(estoqueRes.rows[0].quantidade);
       if (quantidade > estoqueAtual) {
         throw new Error(`Estoque insuficiente para "${produto.nome}"`);
       }
 
+      // Calcular subtotal
       const preco = Number(produto.preco);
       const subtotal = preco * quantidade;
-
       total += subtotal;
 
-      // 🔥 INSERE ITEM
+      // Inserir item na venda
       await client.query(
-        `INSERT INTO itens_venda
-         (id_venda, id_produto, quantidade, preco_unitario)
+        `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
         [id_venda, idProduto, quantidade, preco]
       );
 
-      // 🔥 ATUALIZA ESTOQUE
+      // Atualizar estoque
       await client.query(
-        `UPDATE estoque
-         SET quantidade = quantidade - $1
-         WHERE id_produto = $2`,
+        `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
         [quantidade, idProduto]
       );
     }
 
-    // 🔥 ATUALIZA TOTAL
-    await client.query(
-      `UPDATE vendas SET total = $1 WHERE id = $2`,
-      [total, id_venda]
-    );
+    // Atualizar total da venda
+    await client.query(`UPDATE vendas SET total = $1 WHERE id = $2`, [total, id_venda]);
 
     await client.query("COMMIT");
 
     return res.json({
       sucesso: true,
       id: id_venda,
-      total
+      total,
     });
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
-
     console.error("ERRO CRIAR VENDA:", err);
-
-    return res.status(500).json({
-      erro: err.message
-    });
-
+    return res.status(500).json({ erro: err.message });
   } finally {
     if (client) client.release();
   }
 };
-
 
 /* =========================
    LISTAR VENDAS
@@ -156,7 +124,6 @@ export const listarVendas = async (req, res) => {
         v.id,
         v.total,
         v.data_venda,
-
         json_agg(
           json_build_object(
             'produto', p.nome,
@@ -164,14 +131,10 @@ export const listarVendas = async (req, res) => {
             'preco', iv.preco_unitario
           )
         ) AS itens
-
       FROM vendas v
-
       LEFT JOIN itens_venda iv ON iv.id_venda = v.id
       LEFT JOIN produtos p ON p.id = iv.id_produto
-
       WHERE v.id_usuario = $1
-
       GROUP BY v.id
       ORDER BY v.id DESC
       `,
