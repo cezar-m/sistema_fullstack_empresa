@@ -130,39 +130,25 @@ export default function PaginaVendas() {
   };
 
   // ================= TOTAL POR PRODUTO =================
-  const totalVendidoPorProduto = () => {
-    const total = {};
+ const totalVendidoPorProduto = () => {
+  const total = {};
 
-    // SOMA VENDAS
-    vendas.forEach(venda => {
-      if (!Array.isArray(venda.itens)) return;
+  vendas.forEach(venda => {
+    if (!Array.isArray(venda.itens)) return;
 
-      venda.itens.forEach(item => {
-        const nome = item.produto || item.nome;
-        if (!nome) return;
+    venda.itens.forEach(item => {
+      const nome = item.produto || item.nome;
+      if (!nome) return;
 
-        total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
-      });
+      total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
     });
+  });
 
-    // SUBTRAI PAGAMENTOS
-    pagamentos.forEach(pag => {
-      if (!pag || pag.status !== "pago") return;
-      if (!Array.isArray(pag.itens)) return;
-
-      pag.itens.forEach(item => {
-        const nome = item.produto || item.nome;
-        if (!nome) return;
-
-        total[nome] = (total[nome] || 0) - Number(item.quantidade || 0);
-      });
-    });
-
-    return Object.entries(total).map(([produto, quantidade]) => ({
-      produto,
-      quantidade: quantidade < 0 ? 0 : quantidade
-    }));
-  };
+  return Object.entries(total).map(([produto, quantidade]) => ({
+    produto,
+    quantidade
+  }));
+};
 
   // ================= PAGINAÇÃO =================
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
