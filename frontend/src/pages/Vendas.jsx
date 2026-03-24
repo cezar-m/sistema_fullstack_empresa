@@ -12,23 +12,17 @@ const PaginaVendas = () => {
   const [tipoMensagem, setTipoMensagem] = useState("");
 
   const vendasPorPagina = 10;
-  const token = localStorage.getItem("token");
 
   // ====================== ALERTA TEMPORÁRIO ======================
   useEffect(() => {
     if (!mensagem) return;
-
-    const timer = setTimeout(() => {
-      setMensagem("");
-    }, 3000);
-
+    const timer = setTimeout(() => setMensagem(""), 3000);
     return () => clearTimeout(timer);
   }, [mensagem]);
 
   // ====================== ADICIONAR ITEM ======================
   const adicionarItem = () => {
     if (!produto || quantidade <= 0) return;
-
     setItens([...itens, { nome: produto, quantidade }]);
     setProduto("");
     setQuantidade(1);
@@ -51,7 +45,6 @@ const PaginaVendas = () => {
   const listarVendas = async () => {
     try {
       const res = await api.get("/vendas");
-
       if (Array.isArray(res.data)) {
         setVendas(res.data);
       } else {
@@ -75,7 +68,7 @@ const PaginaVendas = () => {
     vendas.forEach((venda) => {
       if (Array.isArray(venda.itens)) {
         venda.itens.forEach((item) => {
-          const nomeProduto = item.nome; // <--- corrigido aqui
+          const nomeProduto = item.nome;
           if (total[nomeProduto]) {
             total[nomeProduto] += item.quantidade;
           } else {
@@ -93,11 +86,17 @@ const PaginaVendas = () => {
 
   // ====================== PAGINAÇÃO ======================
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
-
   const vendasPagina = vendas.slice(
     (paginaAtual - 1) * vendasPorPagina,
     paginaAtual * vendasPorPagina
   );
+
+  // ====================== FUNÇÃO PARA CALCULAR TOTAL DA VENDA ======================
+  const calcularTotal = (venda) => {
+    if (venda.total) return Number(venda.total);
+    if (!Array.isArray(venda.itens)) return 0;
+    return venda.itens.reduce((acc, item) => acc + (item.quantidade * (item.preco || 0)), 0);
+  };
 
   // ====================== RENDER ======================
   return (
@@ -112,10 +111,7 @@ const PaginaVendas = () => {
             <div className="row g-3">
               <div className="col-md-6">
                 <div className="d-flex align-items-center mb-2 gap-2">
-                  <label
-                    className="fw-semibold mb-0"
-                    style={{ width: "150px" }}
-                  >
+                  <label className="fw-semibold mb-0" style={{ width: "150px" }}>
                     Nome do Produto:
                   </label>
                   <input
@@ -129,10 +125,7 @@ const PaginaVendas = () => {
 
               <div className="col-md-3">
                 <div className="d-flex align-items-center mb-2 gap-2">
-                  <label
-                    className="fw-semibold mb-0"
-                    style={{ width: "150px" }}
-                  >
+                  <label className="fw-semibold mb-0" style={{ width: "150px" }}>
                     Quantidade:
                   </label>
                   <input
@@ -146,10 +139,7 @@ const PaginaVendas = () => {
               </div>
 
               <div className="col-md-3">
-                <button
-                  className="btn btn-success w-100"
-                  onClick={adicionarItem}
-                >
+                <button className="btn btn-success w-100" onClick={adicionarItem}>
                   Adicionar
                 </button>
               </div>
@@ -179,9 +169,7 @@ const PaginaVendas = () => {
 
         {/* ================= LISTA DE VENDAS ================= */}
         <div className="card shadow">
-          <div className="card-header bg-dark text-white fw-bold">
-            Minhas Vendas
-          </div>
+          <div className="card-header bg-dark text-white fw-bold">Minhas Vendas</div>
           <div className="card-body">
             {vendas.length === 0 ? (
               <p>Nenhuma venda encontrada</p>
@@ -199,11 +187,7 @@ const PaginaVendas = () => {
                     <tbody>
                       {vendasPagina.map((venda) => (
                         <tr key={venda.id}>
-                          <td>
-                            {new Date(venda.data_venda).toLocaleDateString(
-                              "pt-BR"
-                            )}
-                          </td>
+                          <td>{new Date(venda.data_venda).toLocaleDateString("pt-BR")}</td>
                           <td>
                             {Array.isArray(venda.itens) &&
                               venda.itens.map((item, index) => (
@@ -212,25 +196,20 @@ const PaginaVendas = () => {
                                 </div>
                               ))}
                           </td>
-                          <td className="fw-bold text-success">
-                            R$ {Number(venda.total).toFixed(2)}
-                          </td>
+                          <td className="fw-bold text-success">R$ {calcularTotal(venda).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                {/* ================= PAGINAÇÃO ================= */}
                 {totalPaginas > 1 && (
                   <div className="d-flex justify-content-center mt-3">
                     {Array.from({ length: totalPaginas }).map((_, index) => (
                       <button
                         key={index}
                         className={`btn btn-sm mx-1 ${
-                          paginaAtual === index + 1
-                            ? "btn-success"
-                            : "btn-outline-secondary"
+                          paginaAtual === index + 1 ? "btn-success" : "btn-outline-secondary"
                         }`}
                         onClick={() => setPaginaAtual(index + 1)}
                       >
@@ -246,9 +225,7 @@ const PaginaVendas = () => {
 
         {/* ================= RESUMO TOTAL POR PRODUTO ================= */}
         <div className="card shadow mt-4">
-          <div className="card-header bg-info text-white fw-bold">
-            Total Vendido por Produto
-          </div>
+          <div className="card-header bg-info text-white fw-bold">Total Vendido por Produto</div>
           <div className="card-body">
             {vendas.length === 0 ? (
               <p>Nenhuma venda realizada ainda</p>
@@ -278,4 +255,3 @@ const PaginaVendas = () => {
 };
 
 export default PaginaVendas;
-	
