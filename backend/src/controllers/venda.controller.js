@@ -1,23 +1,18 @@
 import db from "../config/db.js";
 
-/* =========================
-   CRIAR VENDA
-========================= */
+// ========================= CRIAR VENDA =========================
 export const criarVenda = async (req, res) => {
   let client;
-
   try {
     client = await db.connect();
     await client.query("BEGIN");
 
-    // ====================== AUTENTICAÇÃO ======================
-    if (!req.user || !req.user.id) {
+    if (!req.user?.id) {
       await client.query("ROLLBACK");
       return res.status(401).json({ erro: "Usuário não autenticado" });
     }
     const id_usuario = req.user.id;
 
-    // ====================== VALIDAÇÃO DE ITENS ======================
     const { itens } = req.body;
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       await client.query("ROLLBACK");
@@ -26,84 +21,49 @@ export const criarVenda = async (req, res) => {
 
     let total = 0;
 
-    // ====================== CRIAR VENDA ======================
-    const vendaResult = await client.query(
+    const vendaRes = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
-       VALUES ($1, 0, NOW())
-       RETURNING id`,
+       VALUES ($1, 0, NOW()) RETURNING id`,
       [id_usuario]
     );
-    const id_venda = vendaResult.rows[0].id;
+    const id_venda = vendaRes.rows[0].id;
 
-    // ====================== PROCESSAR ITENS ======================
     for (const item of itens) {
+      const idProduto = Number(item.id_produto);
       const quantidade = Number(item.quantidade);
-      if (!quantidade || quantidade <= 0) {
-        throw new Error("Quantidade inválida para um dos produtos");
+
+      if (!idProduto || !quantidade || quantidade <= 0) {
+        throw new Error(`Produto ou quantidade inválidos: id=${item.id_produto}, qtd=${item.quantidade}`);
       }
 
-      let idProduto = null;
+      const prodRes = await client.query(`SELECT id, nome, preco FROM produtos WHERE id = $1`, [idProduto]);
+      if (prodRes.rows.length === 0) throw new Error(`Produto ID ${idProduto} não encontrado`);
 
-      // Usar id_produto enviado pelo frontend
-      if (item.id_produto) {
-        idProduto = Number(item.id_produto);
-      } else {
-        throw new Error("ID do produto obrigatório");
-      }
-
-      // Buscar produto no banco
-      const prodRes = await client.query(
-        `SELECT id, nome, preco FROM produtos WHERE id = $1`,
-        [idProduto]
-      );
-      if (prodRes.rows.length === 0) {
-        throw new Error(`Produto ID ${idProduto} não encontrado`);
-      }
       const produto = prodRes.rows[0];
 
-      // Verificar estoque
-      const estoqueRes = await client.query(
-        `SELECT quantidade FROM estoque WHERE id_produto = $1`,
-        [idProduto]
-      );
-      if (estoqueRes.rows.length === 0) {
-        throw new Error(`Produto "${produto.nome}" sem estoque`);
-      }
-      const estoqueAtual = Number(estoqueRes.rows[0].quantidade);
-      if (quantidade > estoqueAtual) {
-        throw new Error(`Estoque insuficiente para "${produto.nome}"`);
-      }
+      const estoqueRes = await client.query(`SELECT quantidade FROM estoque WHERE id_produto = $1`, [idProduto]);
+      if (estoqueRes.rows.length === 0) throw new Error(`Produto "${produto.nome}" sem estoque`);
+      if (quantidade > Number(estoqueRes.rows[0].quantidade)) throw new Error(`Estoque insuficiente para "${produto.nome}"`);
 
-      // Calcular subtotal
-      const preco = Number(produto.preco);
-      const subtotal = preco * quantidade;
+      const subtotal = Number(produto.preco) * quantidade;
       total += subtotal;
 
-      // Inserir item na venda
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
-        [id_venda, idProduto, quantidade, preco]
+        [id_venda, idProduto, quantidade, Number(produto.preco)]
       );
 
-      // Atualizar estoque
       await client.query(
         `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
         [quantidade, idProduto]
       );
     }
 
-    // Atualizar total da venda
     await client.query(`UPDATE vendas SET total = $1 WHERE id = $2`, [total, id_venda]);
-
     await client.query("COMMIT");
 
-    return res.json({
-      sucesso: true,
-      id: id_venda,
-      total,
-    });
-
+    return res.json({ sucesso: true, id: id_venda, total });
   } catch (err) {
     if (client) await client.query("ROLLBACK");
     console.error("ERRO CRIAR VENDA:", err);
@@ -113,9 +73,7 @@ export const criarVenda = async (req, res) => {
   }
 };
 
-/* =========================
-   LISTAR VENDAS COM PRODUTOS COMPLETOS
-========================= */
+// ========================= LISTAR VENDAS =========================
 export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
@@ -126,11 +84,11 @@ export const listarVendas = async (req, res) => {
         v.data_venda,
         json_agg(
           json_build_object(
-            'id', p.id,
+            'id_produto', p.id,
             'produto', p.nome,
             'imagem', p.imagem,
-            'quantidade', iv.quantidade,
-            'preco', iv.preco_unitario
+            'preco', iv.preco_unitario,
+            'quantidade', iv.quantidade
           )
         ) AS itens
       FROM vendas v
@@ -149,5 +107,3 @@ export const listarVendas = async (req, res) => {
     return res.status(500).json({ erro: err.message });
   }
 };
-
-
