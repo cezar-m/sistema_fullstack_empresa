@@ -81,15 +81,58 @@ export default function PaginaVendas() {
       return;
     }
 
-    setItens(prev => [
-      ...prev,
-      {
-        id_produto: id,
-        nome: produtoObj.nome,
-        preco: Number(produtoObj.preco),
-        quantidade: qtd
+    // 🔥 VALIDA ESTOQUE
+    if (produtoObj.quantidade <= 0) {
+      setMensagem("Produto sem estoque");
+      setTipoMensagem("erro");
+      return;
+    }
+
+    if (produtoObj.quantidade < qtd) {
+      setMensagem(`Estoque insuficiente. Disponível: ${produtoObj.quantidade}`);
+      setTipoMensagem("erro");
+      return;
+    }
+
+    // 🔥 EVITA DUPLICAR ITEM
+    const itemExistente = itens.find(i => i.id_produto === id);
+
+    if (itemExistente) {
+      const novaQtd = itemExistente.quantidade + qtd;
+
+      if (novaQtd > produtoObj.quantidade) {
+        setMensagem(`Estoque insuficiente. Máximo: ${produtoObj.quantidade}`);
+        setTipoMensagem("erro");
+        return;
       }
-    ]);
+
+      setItens(prev =>
+        prev.map(i =>
+          i.id_produto === id
+            ? { ...i, quantidade: novaQtd }
+            : i
+        )
+      );
+    } else {
+      setItens(prev => [
+        ...prev,
+        {
+          id_produto: id,
+          nome: produtoObj.nome,
+          preco: Number(produtoObj.preco),
+          quantidade: qtd
+        }
+      ]);
+    }
+
+    // 🔥 ATUALIZA ESTOQUE NA TELA (tempo real)
+    setProdutos(prev =>
+      prev.map(p =>
+        p.id === id
+          ? { ...p, quantidade: p.quantidade - qtd }
+          : p
+      )
+    );
 
     setProdutoSelecionado("");
     setQuantidade(1);
@@ -107,13 +150,21 @@ export default function PaginaVendas() {
       await api.post("/vendas", { itens });
 
       setItens([]);
+
+      // 🔥 ATUALIZA TUDO
+      await listarProdutos();
       await listarVendas();
+
       setPaginaAtual(1);
 
       setMensagem("Venda realizada com sucesso!");
       setTipoMensagem("sucesso");
     } catch (err) {
       console.error("Erro criar venda:", err.response?.data);
+
+      // 🔥 SE DER ERRO VOLTA ESTOQUE NA TELA
+      await listarProdutos();
+
       setMensagem(err.response?.data?.erro || "Erro ao criar venda");
       setTipoMensagem("erro");
     }
@@ -130,22 +181,21 @@ export default function PaginaVendas() {
   };
 
   // ================= TOTAL POR PRODUTO =================
-const totalVendidoPorProduto = () => {
-  const total = {};
+  const totalVendidoPorProduto = () => {
+    const total = {};
 
-  vendas.forEach(venda => {
-    venda.itens.forEach(item => {
-      const nome = item.produto;
-      total[nome] = (total[nome] || 0) + item.quantidade;
+    vendas.forEach(venda => {
+      venda.itens.forEach(item => {
+        const nome = item.produto;
+        total[nome] = (total[nome] || 0) + item.quantidade;
+      });
     });
-  });
 
-  return Object.entries(total).map(([produto, quantidade]) => ({
-    produto,
-    quantidade
-  }));
-};
-
+    return Object.entries(total).map(([produto, quantidade]) => ({
+      produto,
+      quantidade
+    }));
+  };
 
   // ================= PAGINAÇÃO =================
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
@@ -179,8 +229,12 @@ const totalVendidoPorProduto = () => {
                   <option value="">Selecione</option>
 
                   {produtos.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome} - R$ {Number(p.preco).toFixed(2)}
+                    <option
+                      key={p.id}
+                      value={p.id}
+                      disabled={p.quantidade <= 0}
+                    >
+                      {p.nome} - R$ {Number(p.preco).toFixed(2)} (Estoque: {p.quantidade})
                     </option>
                   ))}
                 </select>
