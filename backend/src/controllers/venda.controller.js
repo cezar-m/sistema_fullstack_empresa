@@ -14,13 +14,18 @@ export const criarVenda = async (req, res) => {
     const id_usuario = req.user.id;
 
     const { itens } = req.body;
-    if (!Array.isArray(itens) || itens.length === 0) {
+
+    // DEBUG: ver exatamente o que chegou
+    console.log("PAYLOAD RECEBIDO:", itens);
+
+    if (!itens || !Array.isArray(itens) || itens.length === 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({ erro: "Itens obrigatórios" });
     }
 
     let total = 0;
 
+    // Criar venda
     const vendaRes = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW()) RETURNING id`,
@@ -28,50 +33,50 @@ export const criarVenda = async (req, res) => {
     );
     const id_venda = vendaRes.rows[0].id;
 
+    // Processar itens
     for (const item of itens) {
-      // Garante que sempre são números
-      const idProduto = parseInt(item.id_produto);
-      const quantidade = parseInt(item.quantidade);
+      const idProduto = Number(item.id_produto);
+      const quantidade = Number(item.quantidade);
 
       if (!idProduto || !quantidade || quantidade <= 0) {
-        throw new Error(`Produto ou quantidade inválidos: ${JSON.stringify(item)}`);
+        throw new Error(`Produto ou quantidade inválidos: id=${item.id_produto}, qtd=${item.quantidade}`);
       }
 
+      // Buscar produto
       const prodRes = await client.query(
         `SELECT id, nome, preco FROM produtos WHERE id = $1`,
         [idProduto]
       );
-      if (prodRes.rows.length === 0) {
-        throw new Error(`Produto ID ${idProduto} não encontrado`);
-      }
+      if (prodRes.rows.length === 0) throw new Error(`Produto ID ${idProduto} não encontrado`);
       const produto = prodRes.rows[0];
 
+      // Verificar estoque
       const estoqueRes = await client.query(
         `SELECT quantidade FROM estoque WHERE id_produto = $1`,
         [idProduto]
       );
-      if (estoqueRes.rows.length === 0) {
-        throw new Error(`Produto "${produto.nome}" sem estoque`);
-      }
-      if (quantidade > parseInt(estoqueRes.rows[0].quantidade)) {
+      if (estoqueRes.rows.length === 0) throw new Error(`Produto "${produto.nome}" sem estoque`);
+      if (quantidade > Number(estoqueRes.rows[0].quantidade))
         throw new Error(`Estoque insuficiente para "${produto.nome}"`);
-      }
 
-      const subtotal = parseFloat(produto.preco) * quantidade;
+      const subtotal = Number(produto.preco) * quantidade;
       total += subtotal;
 
+      // Inserir item
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
-        [id_venda, idProduto, quantidade, parseFloat(produto.preco)]
+        [id_venda, idProduto, quantidade, Number(produto.preco)]
       );
 
+      // Atualizar estoque
       await client.query(
         `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
         [quantidade, idProduto]
       );
     }
 
+    // Atualizar total da venda
     await client.query(`UPDATE vendas SET total = $1 WHERE id = $2`, [total, id_venda]);
     await client.query("COMMIT");
 
