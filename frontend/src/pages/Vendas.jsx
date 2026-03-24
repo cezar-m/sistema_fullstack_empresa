@@ -24,7 +24,7 @@ export default function PaginaVendas() {
   // ================= PRODUTOS =================
   const listarProdutos = async () => {
     try {
-      const res = await api.get("/products");
+      const res = await api.get("/products/listar");
       console.log("PRODUTOS:", res.data);
       setProdutos(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
