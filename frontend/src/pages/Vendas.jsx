@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+importimport { useState, useEffect } from "react";
 import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
@@ -62,16 +62,9 @@ export default function PaginaVendas() {
 
     const existente = itens.find(i => i.id_produto === id);
     if (existente) {
-      setItens(prev =>
-        prev.map(i =>
-          i.id_produto === id ? { ...i, quantidade: i.quantidade + qtd } : i
-        )
-      );
+      setItens(prev => prev.map(i => i.id_produto === id ? { ...i, quantidade: i.quantidade + qtd } : i));
     } else {
-      setItens(prev => [
-        ...prev,
-        { id_produto: id, nome: produto.nome, preco: Number(produto.preco), quantidade: qtd }
-      ]);
+      setItens(prev => [...prev, { id_produto: id, nome: produto.nome, preco: Number(produto.preco), quantidade: qtd }]);
     }
 
     setProdutoSelecionado("");
@@ -84,6 +77,7 @@ export default function PaginaVendas() {
       setTipoMensagem("erro");
       return;
     }
+
     try {
       await api.post("/vendas", { itens });
       setItens([]);
@@ -118,7 +112,6 @@ export default function PaginaVendas() {
   return (
     <DashboardLayout>
       <div className="container mt-4">
-        {/* Nova Venda */}
         <div className="card shadow mb-4">
           <div className="card-header bg-primary text-white fw-bold">Nova Venda</div>
           <div className="card-body">
@@ -127,11 +120,7 @@ export default function PaginaVendas() {
                 <label>Produto:</label>
                 <select className="form-select" value={produtoSelecionado} onChange={e => setProdutoSelecionado(e.target.value)}>
                   <option value="">Selecione</option>
-                  {produtos.map(p => (
-                    <option key={p.id} value={p.id} disabled={p.quantidade <= 0}>
-                      {p.nome} - R$ {Number(p.preco).toFixed(2)} (Estoque: {p.quantidade})
-                    </option>
-                  ))}
+                  {produtos.map(p => <option key={p.id} value={p.id} disabled={p.quantidade <= 0}>{p.nome} - R$ {Number(p.preco).toFixed(2)} (Estoque: {p.quantidade})</option>)}
                 </select>
               </div>
               <div className="col-md-3">
@@ -142,19 +131,18 @@ export default function PaginaVendas() {
                 <button className="btn btn-success w-100" onClick={adicionarItem}>Adicionar</button>
               </div>
             </div>
-            {itens.length > 0 && (
-              <div className="mt-3">
-                <h6>Itens adicionados:</h6>
-                {itens.map((i, idx) => <div key={idx}>{i.nome} - {i.quantidade}x - R$ {(i.preco * i.quantidade).toFixed(2)}</div>)}
-              </div>
-            )}
+
+            {itens.length > 0 && <div className="mt-3">
+              <h6>Itens adicionados:</h6>
+              {itens.map((i, idx) => <div key={idx}>{i.nome} - {i.quantidade}x - R$ {(i.preco * i.quantidade).toFixed(2)}</div>)}
+            </div>}
+
             <div className="text-center mt-3">
               <button className="btn btn-success" onClick={criarVenda} disabled={itens.length === 0}>Finalizar Venda</button>
             </div>
           </div>
         </div>
 
-        {/* Lista de vendas */}
         <div className="card shadow">
           <div className="card-header bg-dark text-white fw-bold">Minhas Vendas</div>
           <div className="card-body">
@@ -162,46 +150,34 @@ export default function PaginaVendas() {
               <>
                 <div className="table-responsive">
                   <table className="table table-bordered table-hover">
-                    <thead className="table-light">
-                      <tr><th>Data</th><th>Produtos</th><th>Total</th></tr>
-                    </thead>
+                    <thead className="table-light"><tr><th>Data</th><th>Produtos</th><th>Total</th></tr></thead>
                     <tbody>
-                      {vendasPagina.map(v => (
-                        <tr key={v.id}>
-                          <td>{new Date(v.data_venda).toLocaleDateString("pt-BR")}</td>
-                          <td>{v.itens.map((i, idx) => <div key={idx}>{i.produto} - {i.quantidade}x</div>)}</td>
-                          <td className="fw-bold text-success">R$ {calcularTotal(v).toFixed(2)}</td>
-                        </tr>
-                      ))}
+                      {vendasPagina.map(v => <tr key={v.id}>
+                        <td>{new Date(v.data_venda).toLocaleDateString("pt-BR")}</td>
+                        <td>{v.itens.map((i, idx) => <div key={idx}>{i.produto} - {i.quantidade}x</div>)}</td>
+                        <td className="fw-bold text-success">R$ {calcularTotal(v).toFixed(2)}</td>
+                      </tr>)}
                     </tbody>
                   </table>
                 </div>
-                {totalPaginas > 1 && (
-                  <div className="d-flex justify-content-center mt-3">
-                    {Array.from({ length: totalPaginas }).map((_, idx) => (
-                      <button key={idx} className={`btn btn-sm mx-1 ${paginaAtual === idx + 1 ? "btn-success" : "btn-outline-secondary"}`} onClick={() => setPaginaAtual(idx + 1)}>{idx + 1}</button>
-                    ))}
-                  </div>
-                )}
+                {totalPaginas > 1 && <div className="d-flex justify-content-center mt-3">
+                  {Array.from({ length: totalPaginas }).map((_, idx) => <button key={idx} className={`btn btn-sm mx-1 ${paginaAtual === idx + 1 ? "btn-success" : "btn-outline-secondary"}`} onClick={() => setPaginaAtual(idx + 1)}>{idx + 1}</button>)}
+                </div>}
               </>
             }
           </div>
         </div>
 
-        {/* Total por produto */}
         <div className="card shadow mt-4">
           <div className="card-header bg-info text-white fw-bold">Total Vendido por Produto</div>
           <div className="card-body">
             <table className="table table-bordered">
               <thead><tr><th>Produto</th><th>Quantidade</th></tr></thead>
-              <tbody>
-                {totalPorProduto().map((i, idx) => <tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}
-              </tbody>
+              <tbody>{totalPorProduto().map((i, idx) => <tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}</tbody>
             </table>
           </div>
         </div>
 
-        {/* Mensagem */}
         {mensagem && <div className={`alert mt-3 ${tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"}`}>{mensagem}</div>}
       </div>
     </DashboardLayout>
