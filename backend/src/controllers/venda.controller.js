@@ -88,22 +88,34 @@ export const listarVendas = async (req, res) => {
         v.id,
         v.total,
         v.data_venda,
+
         COALESCE(
           json_agg(
             json_build_object(
               'produto', p.nome,
-              'quantidade', iv.quantidade
+              'quantidade', iv.quantidade,
+
+              -- 🔥 AQUI: desconta se pago
+              'quantidade_restante',
+              CASE 
+                WHEN pag.status = 'pago' THEN 0
+                ELSE iv.quantidade
+              END
             )
           ) FILTER (WHERE iv.id IS NOT NULL), '[]'
         ) AS itens
+
       FROM vendas v
-      LEFT JOIN itens_venda iv ON iv.id_venda=v.id
-      LEFT JOIN produtos p ON p.id=iv.id_produto
+      LEFT JOIN itens_venda iv ON iv.id_venda = v.id
+      LEFT JOIN produtos p ON p.id = iv.id_produto
+      LEFT JOIN pagamentos pag ON pag.id_venda = v.id
+
       GROUP BY v.id
       ORDER BY v.id DESC
     `);
 
     res.json(result.rows);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: "Erro listar vendas" });
