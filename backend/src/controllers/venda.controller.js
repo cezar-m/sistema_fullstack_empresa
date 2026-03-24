@@ -24,34 +24,46 @@ export const criarVenda = async (req, res) => {
 
     // Processar itens
     for (const item of itens) {
-      const id_produto = Number(item.id_produto);
-      const quantidade = Number(item.quantidade);
+      const id_produto = parseInt(item.id_produto, 10);
+      const quantidade = parseInt(item.quantidade, 10);
 
-      if (!id_produto || quantidade <= 0) throw new Error(`Produto ou quantidade inválidos`);
+      if (!Number.isInteger(id_produto) || id_produto <= 0 || !Number.isInteger(quantidade) || quantidade <= 0) {
+        throw new Error(`Produto ou quantidade inválidos: ${JSON.stringify(item)}`);
+      }
 
-      const prodRes = await client.query("SELECT id, nome, preco FROM produtos WHERE id=$1", [id_produto]);
+      // Buscar produto
+      const prodRes = await client.query(
+        "SELECT id, nome, preco FROM produtos WHERE id=$1",
+        [id_produto]
+      );
       if (prodRes.rows.length === 0) throw new Error(`Produto ID ${id_produto} não encontrado`);
-
       const produto = prodRes.rows[0];
 
-      const estoqueRes = await client.query("SELECT quantidade FROM estoque WHERE id_produto=$1", [id_produto]);
+      // Verificar estoque
+      const estoqueRes = await client.query(
+        "SELECT quantidade FROM estoque WHERE id_produto=$1",
+        [id_produto]
+      );
       if (estoqueRes.rows.length === 0) throw new Error(`Produto "${produto.nome}" sem estoque`);
       if (quantidade > Number(estoqueRes.rows[0].quantidade)) throw new Error(`Estoque insuficiente para "${produto.nome}"`);
 
       const subtotal = Number(produto.preco) * quantidade;
       total += subtotal;
 
+      // Inserir item da venda
       await client.query(
         "INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario) VALUES ($1,$2,$3,$4)",
         [id_venda, id_produto, quantidade, Number(produto.preco)]
       );
 
+      // Atualizar estoque
       await client.query(
         "UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto=$2",
         [quantidade, id_produto]
       );
     }
 
+    // Atualizar total da venda
     await client.query("UPDATE vendas SET total=$1 WHERE id=$2", [total, id_venda]);
     await client.query("COMMIT");
 
