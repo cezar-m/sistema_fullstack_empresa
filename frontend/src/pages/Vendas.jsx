@@ -8,74 +8,56 @@ export default function PaginaVendas() {
   const [quantidade, setQuantidade] = useState(1);
   const [itens, setItens] = useState([]);
   const [vendas, setVendas] = useState([]);
-  const [paginaAtual, setPaginaAtual] = useState(1);
   const [mensagem, setMensagem] = useState("");
   const [tipoMensagem, setTipoMensagem] = useState("");
 
-  const vendasPorPagina = 10;
-
-  // ================= ALERTA =================
-  useEffect(() => {
-    if (!mensagem) return;
-    const timer = setTimeout(() => setMensagem(""), 3000);
-    return () => clearTimeout(timer);
-  }, [mensagem]);
-
-  // ================= PRODUTOS =================
-  const listarProdutos = async () => {
+  // ========================= CARREGAR DADOS =========================
+  const carregar = async () => {
     try {
-      const res = await api.get("/products/listar");
-      console.log("PRODUTOS:", res.data);
-      setProdutos(Array.isArray(res.data) ? res.data : []);
+      const resProd = await api.get("/products/listar");
+      setProdutos(Array.isArray(resProd.data) ? resProd.data : []);
     } catch (err) {
-      console.error("Erro ao buscar produtos:", err);
+      console.error("Erro produtos:", err);
       setMensagem("Erro ao carregar produtos");
       setTipoMensagem("erro");
     }
-  };
 
-  // ================= VENDAS =================
-  const listarVendas = async () => {
     try {
-      const res = await api.get("/vendas");
-      setVendas(Array.isArray(res.data) ? res.data : []);
+      const resVenda = await api.get("/vendas");
+      setVendas(Array.isArray(resVenda.data) ? resVenda.data : []);
     } catch (err) {
-      console.error("Erro ao listar vendas:", err);
+      console.error("Erro vendas:", err);
       setVendas([]);
     }
   };
 
   useEffect(() => {
-    listarProdutos();
-    listarVendas();
+    carregar();
   }, []);
 
-  // ================= ADICIONAR ITEM =================
+  // ========================= ADICIONAR ITEM =========================
   const adicionarItem = () => {
-    const id = Number(produtoSelecionado);
-    const qtd = Number(quantidade);
-
-    if (!id || isNaN(qtd) || qtd <= 0) {
-      setMensagem("Produto ou quantidade inválida");
+    if (!produtoSelecionado || quantidade <= 0) {
+      setMensagem("Selecione produto e quantidade válida");
       setTipoMensagem("erro");
       return;
     }
 
-    const produtoObj = produtos.find(p => p.id === id);
+    const produto = produtos.find(p => p.id === Number(produtoSelecionado));
 
-    if (!produtoObj) {
-      setMensagem("Produto não encontrado");
+    if (!produto) {
+      setMensagem("Produto inválido");
       setTipoMensagem("erro");
       return;
     }
 
-    setItens(prev => [
-      ...prev,
+    setItens([
+      ...itens,
       {
-        id_produto: id,
-        nome: produtoObj.nome,
-        preco: Number(produtoObj.preco),
-        quantidade: qtd
+        id_produto: Number(produto.id),
+        nome: produto.nome,
+        preco: Number(produto.preco),
+        quantidade: Number(quantidade)
       }
     ]);
 
@@ -83,7 +65,7 @@ export default function PaginaVendas() {
     setQuantidade(1);
   };
 
-  // ================= CRIAR VENDA =================
+  // ========================= CRIAR VENDA =========================
   const criarVenda = async () => {
     if (itens.length === 0) {
       setMensagem("Adicione itens antes de finalizar");
@@ -91,69 +73,37 @@ export default function PaginaVendas() {
       return;
     }
 
-    console.log("ENVIANDO ITENS:", itens);
-
     try {
       await api.post("/vendas", { itens });
 
       setItens([]);
-      await listarVendas();
-      setPaginaAtual(1);
-
       setMensagem("Venda realizada com sucesso!");
       setTipoMensagem("sucesso");
+
+      carregar();
     } catch (err) {
-      console.error("Erro criar venda:", err.response?.data);
+      console.error(err);
       setMensagem(err.response?.data?.erro || "Erro ao criar venda");
       setTipoMensagem("erro");
     }
   };
 
-  // ================= TOTAL VENDA =================
+  // ========================= CALCULAR TOTAL =========================
   const calcularTotal = (venda) => {
-    if (venda.total) return Number(venda.total);
     if (!Array.isArray(venda.itens)) return 0;
 
-    return venda.itens.reduce((acc, i) => {
-      return acc + (Number(i.preco) || 0) * (Number(i.quantidade) || 0);
+    return venda.itens.reduce((acc, item) => {
+      return acc + (Number(item.preco || 0) * Number(item.quantidade || 0));
     }, 0);
   };
 
-  // ================= TOTAL POR PRODUTO =================
-  const totalVendidoPorProduto = () => {
-    const total = {};
-
-    vendas.forEach(venda => {
-      if (!Array.isArray(venda.itens)) return;
-
-      venda.itens.forEach(item => {
-        const nome = item.produto || item.nome;
-        total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
-      });
-    });
-
-    return Object.entries(total).map(([produto, quantidade]) => ({
-      produto,
-      quantidade
-    }));
-  };
-
-  // ================= PAGINAÇÃO =================
-  const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
-
-  const vendasPagina = vendas.slice(
-    (paginaAtual - 1) * vendasPorPagina,
-    paginaAtual * vendasPorPagina
-  );
-
-  // ================= RENDER =================
   return (
     <DashboardLayout>
       <div className="container mt-4">
 
-        {/* NOVA VENDA */}
-        <div className="card shadow mb-4">
-          <div className="card-header bg-primary text-white fw-bold">
+        {/* ================= NOVA VENDA ================= */}
+        <div className="card mb-4 shadow">
+          <div className="card-header bg-primary text-white">
             Nova Venda
           </div>
 
@@ -161,14 +111,12 @@ export default function PaginaVendas() {
             <div className="row g-3">
 
               <div className="col-md-6">
-                <label>Produto:</label>
                 <select
                   className="form-select"
                   value={produtoSelecionado}
                   onChange={(e) => setProdutoSelecionado(e.target.value)}
                 >
-                  <option value="">Selecione</option>
-
+                  <option value="">Selecione um produto</option>
                   {produtos.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.nome} - R$ {Number(p.preco).toFixed(2)}
@@ -178,7 +126,6 @@ export default function PaginaVendas() {
               </div>
 
               <div className="col-md-3">
-                <label>Quantidade:</label>
                 <input
                   type="number"
                   className="form-control"
@@ -188,7 +135,7 @@ export default function PaginaVendas() {
                 />
               </div>
 
-              <div className="col-md-3 d-flex align-items-end">
+              <div className="col-md-3">
                 <button
                   className="btn btn-success w-100"
                   onClick={adicionarItem}
@@ -201,8 +148,7 @@ export default function PaginaVendas() {
             {/* ITENS */}
             {itens.length > 0 && (
               <div className="mt-3">
-                <h6>Itens adicionados:</h6>
-
+                <h6>Itens:</h6>
                 {itens.map((i, idx) => (
                   <div key={idx}>
                     {i.nome} - {i.quantidade}x - R$ {(i.preco * i.quantidade).toFixed(2)}
@@ -213,7 +159,7 @@ export default function PaginaVendas() {
 
             <div className="text-center mt-3">
               <button
-                className="btn btn-success"
+                className="btn btn-primary"
                 onClick={criarVenda}
                 disabled={itens.length === 0}
               >
@@ -223,118 +169,75 @@ export default function PaginaVendas() {
           </div>
         </div>
 
-        {/* LISTA DE VENDAS */}
+        {/* ================= LISTA DE VENDAS ================= */}
         <div className="card shadow">
-          <div className="card-header bg-dark text-white fw-bold">
+          <div className="card-header bg-dark text-white">
             Minhas Vendas
           </div>
 
           <div className="card-body">
+
             {vendas.length === 0 ? (
               <p>Nenhuma venda encontrada</p>
             ) : (
-              <>
-                <div className="table-responsive">
-                  <table className="table table-bordered table-hover">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Data</th>
-                        <th>Produtos</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {vendasPagina.map(venda => (
-                        <tr key={venda.id}>
-                          <td>
-                            {new Date(venda.data_venda).toLocaleDateString("pt-BR")}
-                          </td>
-
-                          <td>
-                            {Array.isArray(venda.itens) &&
-                              venda.itens.map((item, idx) => (
-                                <div key={idx}>
-                                  {item.produto || item.nome} - {item.quantidade}x
-                                </div>
-                              ))}
-                          </td>
-
-                          <td className="fw-bold text-success">
-                            R$ {calcularTotal(venda).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* PAGINAÇÃO */}
-                {totalPaginas > 1 && (
-                  <div className="d-flex justify-content-center mt-3">
-                    {Array.from({ length: totalPaginas }).map((_, idx) => (
-                      <button
-                        key={idx}
-                        className={`btn btn-sm mx-1 ${
-                          paginaAtual === idx + 1
-                            ? "btn-success"
-                            : "btn-outline-secondary"
-                        }`}
-                        onClick={() => setPaginaAtual(idx + 1)}
-                      >
-                        {idx + 1}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* TOTAL POR PRODUTO */}
-        <div className="card shadow mt-4">
-          <div className="card-header bg-info text-white fw-bold">
-            Total Vendido por Produto
-          </div>
-
-          <div className="card-body">
-            {vendas.length === 0 ? (
-              <p>Nenhuma venda ainda</p>
-            ) : (
-              <table className="table table-bordered">
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Quantidade</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {totalVendidoPorProduto().map((i, idx) => (
-                    <tr key={idx}>
-                      <td>{i.produto}</td>
-                      <td>{i.quantidade}</td>
+              <div className="table-responsive">
+                <table className="table table-bordered table-hover">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Data</th>
+                      <th>Produtos</th>
+                      <th>Restante</th>
+                      <th>Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+
+                  <tbody>
+                    {vendas.map(v => (
+                      <tr key={v.id}>
+
+                        <td>
+                          {new Date(v.data_venda).toLocaleDateString("pt-BR")}
+                        </td>
+
+                        {/* PRODUTOS */}
+                        <td>
+                          {v.itens?.map((item, i) => (
+                            <div key={i}>
+                              {item.produto} ({item.quantidade}x)
+                            </div>
+                          ))}
+                        </td>
+
+                        {/* 🔥 RESTANTE (NOVO) */}
+                        <td className="text-danger fw-bold">
+                          {v.itens?.map((item, i) => (
+                            <div key={i}>
+                              {item.quantidade_restante}x
+                            </div>
+                          ))}
+                        </td>
+
+                        {/* TOTAL */}
+                        <td className="text-success fw-bold">
+                          R$ {Number(v.total).toFixed(2)}
+                        </td>
+
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
 
-        {/* ALERTA */}
+        {/* ================= ALERTA ================= */}
         {mensagem && (
-          <div
-            className={`alert mt-3 ${
-              tipoMensagem === "sucesso"
-                ? "alert-success"
-                : "alert-danger"
-            }`}
-          >
+          <div className={`alert mt-3 ${tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"}`}>
             {mensagem}
           </div>
         )}
+
       </div>
     </DashboardLayout>
   );
