@@ -26,7 +26,6 @@ export default function PaginaVendas() {
   const listarProdutos = async () => {
     try {
       const res = await api.get("/products/listar");
-      console.log("PRODUTOS:", res.data);
       setProdutos(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Erro ao buscar produtos:", err);
@@ -43,6 +42,17 @@ export default function PaginaVendas() {
     } catch (err) {
       console.error("Erro ao listar vendas:", err);
       setVendas([]);
+    }
+  };
+
+  // ================= PAGAMENTOS =================
+  const listarPagamentos = async () => {
+    try {
+      const res = await api.get("/pagamentos");
+      setPagamentos(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Erro ao listar pagamentos:", err);
+      setPagamentos([]);
     }
   };
 
@@ -93,8 +103,6 @@ export default function PaginaVendas() {
       return;
     }
 
-    console.log("ENVIANDO ITENS:", itens);
-
     try {
       await api.post("/vendas", { itens });
 
@@ -123,47 +131,38 @@ export default function PaginaVendas() {
 
   // ================= TOTAL POR PRODUTO =================
   const totalVendidoPorProduto = () => {
-  const total = {};
+    const total = {};
 
-  // 🔵 SOMA VENDAS
-  vendas.forEach(venda => {
-    if (!Array.isArray(venda.itens)) return;
+    // SOMA VENDAS
+    vendas.forEach(venda => {
+      if (!Array.isArray(venda.itens)) return;
 
-    venda.itens.forEach(item => {
-      const nome = item.produto || item.nome;
-      total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
+      venda.itens.forEach(item => {
+        const nome = item.produto || item.nome;
+        if (!nome) return;
+
+        total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
+      });
     });
-  });
 
-  // 🔴 SUBTRAI PAGAMENTOS
-  pagamentos.forEach(pag => {
-    if (!Array.isArray(pag.itens)) return;
+    // SUBTRAI PAGAMENTOS
+    pagamentos.forEach(pag => {
+      if (!pag || pag.status !== "pago") return;
+      if (!Array.isArray(pag.itens)) return;
 
-    // 🔥 só desconta se estiver pago
-    if (pag.status !== "pago") return;
+      pag.itens.forEach(item => {
+        const nome = item.produto || item.nome;
+        if (!nome) return;
 
-    pag.itens.forEach(item => {
-      const nome = item.produto;
-
-      total[nome] = (total[nome] || 0) - Number(item.quantidade || 0);
+        total[nome] = (total[nome] || 0) - Number(item.quantidade || 0);
+      });
     });
-  });
 
-  return Object.entries(total).map(([produto, quantidade]) => ({
-    produto,
-    quantidade: quantidade < 0 ? 0 : quantidade // evita negativo
-  }));
-};
-
-  const listarPagamentos = async () => {
-  try {
-    const res = await api.get("/pagamentos");
-    setPagamentos(Array.isArray(res.data) ? res.data : []);
-  } catch (err) {
-    console.error("Erro ao listar pagamentos:", err);
-    setPagamentos([]);
-  }
-};
+    return Object.entries(total).map(([produto, quantidade]) => ({
+      produto,
+      quantidade: quantidade < 0 ? 0 : quantidade
+    }));
+  };
 
   // ================= PAGINAÇÃO =================
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
