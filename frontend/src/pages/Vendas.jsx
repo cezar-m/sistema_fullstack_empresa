@@ -83,7 +83,6 @@ const PaginaVendas = () => {
 
   		return Object.entries(total).map(([produto, quantidade]) => ({ produto, quantidade }));
 	};
-
 	
 	/* ========================= PAGINAÇÃO ========================= */
 	
