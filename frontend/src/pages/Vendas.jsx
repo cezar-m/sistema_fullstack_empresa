@@ -8,8 +8,6 @@ const PaginaVendas = () => {
   const [itens, setItens] = useState([]);
   const [vendas, setVendas] = useState([]);
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const [mensagem, setMensagem] = useState("");
-  const [tipoMensagem, setTipoMensagem] = useState("");
 
   const vendasPorPagina = 10;
 
@@ -23,7 +21,7 @@ const PaginaVendas = () => {
   // ====================== ADICIONAR ITEM ======================
   const adicionarItem = () => {
     if (!produto || quantidade <= 0) return;
-    setItens([...itens, { nome: produto, quantidade }]);
+    setItens([...itens, { produto, quantidade }]); // aqui garantimos que o campo seja 'produto'
     setProduto("");
     setQuantidade(1);
   };
@@ -68,12 +66,9 @@ const PaginaVendas = () => {
     vendas.forEach((venda) => {
       if (Array.isArray(venda.itens)) {
         venda.itens.forEach((item) => {
-          const nomeProduto = item.nome;
-          if (total[nomeProduto]) {
-            total[nomeProduto] += item.quantidade;
-          } else {
-            total[nomeProduto] = item.quantidade;
-          }
+          const nomeProduto = item.produto || "Produto Desconhecido"; // fallback
+          const quantidadeProduto = Number(item.quantidade) || 0;
+          total[nomeProduto] = (total[nomeProduto] || 0) + quantidadeProduto;
         });
       }
     });
@@ -91,11 +86,14 @@ const PaginaVendas = () => {
     paginaAtual * vendasPorPagina
   );
 
-  // ====================== FUNÇÃO PARA CALCULAR TOTAL DA VENDA ======================
+  // ====================== CALCULAR TOTAL DA VENDA ======================
   const calcularTotal = (venda) => {
     if (venda.total) return Number(venda.total);
     if (!Array.isArray(venda.itens)) return 0;
-    return venda.itens.reduce((acc, item) => acc + (item.quantidade * (item.preco || 0)), 0);
+    return venda.itens.reduce(
+      (acc, item) => acc + (Number(item.preco) || 0) * (Number(item.quantidade) || 0),
+      0
+    );
   };
 
   // ====================== RENDER ======================
@@ -104,9 +102,7 @@ const PaginaVendas = () => {
       <div className="container mt-4">
         {/* ================= NOVA VENDA ================= */}
         <div className="card shadow mb-4">
-          <div className="card-header bg-primary text-white fw-bold">
-            Nova Venda
-          </div>
+          <div className="card-header bg-primary text-white fw-bold">Nova Venda</div>
           <div className="card-body">
             <div className="row g-3">
               <div className="col-md-6">
@@ -122,7 +118,6 @@ const PaginaVendas = () => {
                   />
                 </div>
               </div>
-
               <div className="col-md-3">
                 <div className="d-flex align-items-center mb-2 gap-2">
                   <label className="fw-semibold mb-0" style={{ width: "150px" }}>
@@ -137,7 +132,6 @@ const PaginaVendas = () => {
                   />
                 </div>
               </div>
-
               <div className="col-md-3">
                 <button className="btn btn-success w-100" onClick={adicionarItem}>
                   Adicionar
@@ -149,7 +143,7 @@ const PaginaVendas = () => {
               <div className="mt-3">
                 {itens.map((item, index) => (
                   <div key={index}>
-                    {item.nome} - {item.quantidade}x
+                    {item.produto} - {item.quantidade}x
                   </div>
                 ))}
               </div>
@@ -192,11 +186,13 @@ const PaginaVendas = () => {
                             {Array.isArray(venda.itens) &&
                               venda.itens.map((item, index) => (
                                 <div key={index}>
-                                  {item.nome} - {item.quantidade}x
+                                  {item.produto || "Produto Desconhecido"} - {item.quantidade || 0}x
                                 </div>
                               ))}
                           </td>
-                          <td className="fw-bold text-success">R$ {calcularTotal(venda).toFixed(2)}</td>
+                          <td className="fw-bold text-success">
+                            R$ {calcularTotal(venda).toFixed(2)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
