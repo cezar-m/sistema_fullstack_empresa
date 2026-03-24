@@ -7,6 +7,12 @@ export const criarVenda = async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    const id_usuario = req.user?.id;
+
+    if (!id_usuario) {
+      throw new Error("Usuário não autenticado");
+    }
+
     const { itens } = req.body;
 
     if (!Array.isArray(itens) || itens.length === 0) {
@@ -16,8 +22,9 @@ export const criarVenda = async (req, res) => {
     let total = 0;
 
     const vendaRes = await client.query(
-      `INSERT INTO vendas (total, data_venda)
-       VALUES (0, NOW()) RETURNING id`
+      `INSERT INTO vendas (id_usuario, total, data_venda)
+       VALUES ($1, 0, NOW()) RETURNING id`,
+      [id_usuario]
     );
 
     const id_venda = vendaRes.rows[0].id;
@@ -26,7 +33,7 @@ export const criarVenda = async (req, res) => {
       const id_produto = Number(item.id_produto);
       const quantidade = Number(item.quantidade);
 
-      if (isNaN(id_produto) || quantidade <= 0) {
+      if (!id_produto || quantidade <= 0) {
         throw new Error("Produto ou quantidade inválidos");
       }
 
@@ -39,27 +46,14 @@ export const criarVenda = async (req, res) => {
         throw new Error("Produto não encontrado");
       }
 
-      const estoque = await client.query(
-        "SELECT quantidade FROM estoque WHERE id_produto=$1",
-        [id_produto]
-      );
-
-      if (quantidade > estoque.rows[0].quantidade) {
-        throw new Error("Estoque insuficiente");
-      }
-
       const preco = Number(prod.rows[0].preco);
+
       total += preco * quantidade;
 
       await client.query(
         `INSERT INTO itens_venda (id_venda,id_produto,quantidade,preco_unitario)
          VALUES ($1,$2,$3,$4)`,
         [id_venda, id_produto, quantidade, preco]
-      );
-
-      await client.query(
-        `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto=$2`,
-        [quantidade, id_produto]
       );
     }
 
@@ -70,54 +64,52 @@ export const criarVenda = async (req, res) => {
 
     await client.query("COMMIT");
 
-    res.json({ sucesso: true });
+    // ✅ CORREÇÃO PRINCIPAL
+    res.json({ sucesso: true, id: id_venda, total });
+
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
+    console.error("ERRO CRIAR VENDA:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     client.release();
   }
 };
 
+
 // ================= LISTAR =================
 export const listarVendas = async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await db.query(
+      `
       SELECT 
         v.id,
         v.total,
         v.data_venda,
-
         COALESCE(
           json_agg(
             json_build_object(
+              'id_produto', p.id,
               'produto', p.nome,
-              'quantidade', iv.quantidade,
-
-              -- 🔥 AQUI: desconta se pago
-              'quantidade_restante',
-              CASE 
-                WHEN pag.status = 'pago' THEN 0
-                ELSE iv.quantidade
-              END
+              'preco', iv.preco_unitario,
+              'quantidade', iv.quantidade
             )
           ) FILTER (WHERE iv.id IS NOT NULL), '[]'
         ) AS itens
-
       FROM vendas v
       LEFT JOIN itens_venda iv ON iv.id_venda = v.id
       LEFT JOIN produtos p ON p.id = iv.id_produto
-      LEFT JOIN pagamentos pag ON pag.id_venda = v.id
-
+      WHERE v.id_usuario = $1
       GROUP BY v.id
       ORDER BY v.id DESC
-    `);
+      `,
+      [req.user.id]
+    );
 
     res.json(result.rows);
 
   } catch (err) {
-    console.error(err);
+    console.error("ERRO LISTAR VENDAS:", err);
     res.status(500).json({ erro: "Erro listar vendas" });
   }
 };
