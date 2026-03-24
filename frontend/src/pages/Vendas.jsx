@@ -14,17 +14,14 @@ const PaginaVendas = () => {
 
   const vendasPorPagina = 10;
 
+  // Alerta temporário
   useEffect(() => {
     if (!mensagem) return;
     const timer = setTimeout(() => setMensagem(""), 3000);
     return () => clearTimeout(timer);
   }, [mensagem]);
 
-  useEffect(() => {
-    listarProdutos();
-    listarVendas();
-  }, []);
-
+  // Buscar produtos
   const listarProdutos = async () => {
     try {
       const res = await api.get("/produtos");
@@ -34,6 +31,7 @@ const PaginaVendas = () => {
     }
   };
 
+  // Listar vendas
   const listarVendas = async () => {
     try {
       const res = await api.get("/vendas");
@@ -45,35 +43,53 @@ const PaginaVendas = () => {
     }
   };
 
+  useEffect(() => {
+    listarProdutos();
+    listarVendas();
+  }, []);
+
+  // Adicionar item
   const adicionarItem = () => {
-    if (!produtoSelecionado || quantidade <= 0) {
+    const id = Number(produtoSelecionado);
+    const qtd = Number(quantidade);
+
+    if (!id || !qtd || qtd <= 0) {
       setMensagem("Selecione produto e quantidade válida");
       setTipoMensagem("erro");
       return;
     }
 
-    const produtoObj = produtos.find(p => p.id === Number(produtoSelecionado));
-    if (!produtoObj) return;
+    const produtoObj = produtos.find(p => p.id === id);
+    if (!produtoObj) {
+      setMensagem("Produto inválido");
+      setTipoMensagem("erro");
+      return;
+    }
 
     setItens([...itens, {
-      id_produto: Number(produtoObj.id),
-      quantidade: Number(quantidade)
+      id_produto: id,
+      nome: produtoObj.nome,
+      preco: Number(produtoObj.preco),
+      quantidade: qtd
     }]);
 
     setProdutoSelecionado("");
     setQuantidade(1);
   };
 
+  // Criar venda
   const criarVenda = async () => {
     if (itens.length === 0) return;
+
+    console.log("Payload enviado:", itens);
 
     try {
       await api.post("/vendas", { itens });
       setItens([]);
-      listarVendas();
-      setPaginaAtual(1);
+      await listarVendas();
       setMensagem("Venda realizada com sucesso!");
       setTipoMensagem("sucesso");
+      setPaginaAtual(1);
     } catch (err) {
       setMensagem(err.response?.data?.erro || "Erro ao criar venda");
       setTipoMensagem("erro");
@@ -81,18 +97,20 @@ const PaginaVendas = () => {
     }
   };
 
-  const calcularTotal = (venda) => {
+  // Total da venda
+  const calcularTotal = venda => {
     if (venda.total) return Number(venda.total);
     if (!Array.isArray(venda.itens)) return 0;
-    return venda.itens.reduce((acc, i) => acc + (Number(i.preco) || 0) * (Number(i.quantidade) || 0), 0);
+    return venda.itens.reduce((acc, i) => acc + Number(i.preco) * Number(i.quantidade), 0);
   };
 
+  // Total vendido por produto
   const totalVendidoPorProduto = () => {
     const total = {};
     vendas.forEach(venda => {
       if (!Array.isArray(venda.itens)) return;
       venda.itens.forEach(item => {
-        const nome = item.produto;
+        const nome = item.produto || item.nome;
         total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
       });
     });
@@ -105,7 +123,7 @@ const PaginaVendas = () => {
   return (
     <DashboardLayout>
       <div className="container mt-4">
-        {/* NOVA VENDA */}
+        {/* Nova venda */}
         <div className="card shadow mb-4">
           <div className="card-header bg-primary text-white fw-bold">Nova Venda</div>
           <div className="card-body">
@@ -119,7 +137,7 @@ const PaginaVendas = () => {
               </div>
               <div className="col-md-3">
                 <label>Quantidade:</label>
-                <input type="number" className="form-control" min="1" value={quantidade} onChange={e => setQuantidade(Number(e.target.value))}/>
+                <input type="number" className="form-control" min="1" value={quantidade} onChange={e => setQuantidade(Number(e.target.value))} />
               </div>
               <div className="col-md-3 d-flex align-items-end">
                 <button className="btn btn-success w-100" onClick={adicionarItem}>Adicionar</button>
@@ -129,7 +147,7 @@ const PaginaVendas = () => {
             {itens.length > 0 && (
               <div className="mt-3">
                 <h6>Itens adicionados:</h6>
-                {itens.map((i, idx) => <div key={idx}>{i.id_produto} - {i.quantidade}x</div>)}
+                {itens.map((i, idx) => <div key={idx}>{i.nome} - {i.quantidade}x - R$ {(i.preco * i.quantidade).toFixed(2)}</div>)}
               </div>
             )}
 
@@ -139,11 +157,11 @@ const PaginaVendas = () => {
           </div>
         </div>
 
-        {/* LISTA DE VENDAS */}
+        {/* Lista vendas */}
         <div className="card shadow">
           <div className="card-header bg-dark text-white fw-bold">Minhas Vendas</div>
           <div className="card-body">
-            {vendas.length === 0 ? <p>Nenhuma venda encontrada</p> : (
+            {vendas.length === 0 ? <p>Nenhuma venda encontrada</p> :
               <>
                 <div className="table-responsive">
                   <table className="table table-bordered table-hover">
@@ -152,39 +170,41 @@ const PaginaVendas = () => {
                       {vendasPagina.map(v => (
                         <tr key={v.id}>
                           <td>{new Date(v.data_venda).toLocaleDateString("pt-BR")}</td>
-                          <td>{v.itens?.map((item, idx) => <div key={idx}>{item.produto} - {item.quantidade}x</div>)}</td>
+                          <td>{Array.isArray(v.itens) && v.itens.map((item, idx) => <div key={idx}>{item.produto || item.nome} - {item.quantidade}x</div>)}</td>
                           <td className="fw-bold text-success">R$ {calcularTotal(v).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+
                 {totalPaginas > 1 && (
                   <div className="d-flex justify-content-center mt-3">
-                    {Array.from({length: totalPaginas}).map((_, idx) => (
+                    {Array.from({ length: totalPaginas }).map((_, idx) => (
                       <button key={idx} className={`btn btn-sm mx-1 ${paginaAtual===idx+1?"btn-success":"btn-outline-secondary"}`} onClick={()=>setPaginaAtual(idx+1)}>{idx+1}</button>
                     ))}
                   </div>
                 )}
               </>
-            )}
+            }
           </div>
         </div>
 
-        {/* TOTAL VENDIDO POR PRODUTO */}
+        {/* Total vendido por produto */}
         <div className="card shadow mt-4">
           <div className="card-header bg-info text-white fw-bold">Total Vendido por Produto</div>
           <div className="card-body">
-            {vendas.length===0 ? <p>Nenhuma venda realizada ainda</p> : (
+            {vendas.length===0 ? <p>Nenhuma venda realizada ainda</p> :
               <table className="table table-bordered">
                 <thead><tr><th>Produto</th><th>Quantidade Total</th></tr></thead>
-                <tbody>{totalVendidoPorProduto().map((i, idx) => <tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}</tbody>
+                <tbody>
+                  {totalVendidoPorProduto().map((i, idx)=><tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}
+                </tbody>
               </table>
-            )}
+            }
           </div>
         </div>
 
-        {/* MENSAGEM */}
         {mensagem && <div className={`alert mt-3 ${tipoMensagem==="sucesso"?"alert-success":"alert-danger"}`} role="alert">{mensagem}</div>}
       </div>
     </DashboardLayout>
