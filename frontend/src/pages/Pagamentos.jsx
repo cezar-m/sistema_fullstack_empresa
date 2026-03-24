@@ -242,6 +242,7 @@ export default function Pagamentos() {
               <thead>
                 <tr>
                   <th>Nº Parcela</th>
+                  <th>Nome</th>
                   <th>Valor</th>
                   <th>Status</th>
                   <th>Ações</th>
