@@ -121,22 +121,37 @@ export default function PaginaVendas() {
 
   // ================= TOTAL POR PRODUTO =================
   const totalVendidoPorProduto = () => {
-    const total = {};
+  const total = {};
 
-    vendas.forEach(venda => {
-      if (!Array.isArray(venda.itens)) return;
+  // 🔵 SOMA VENDAS
+  vendas.forEach(venda => {
+    if (!Array.isArray(venda.itens)) return;
 
-      venda.itens.forEach(item => {
-        const nome = item.produto || item.nome;
-        total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
-      });
+    venda.itens.forEach(item => {
+      const nome = item.produto || item.nome;
+      total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
     });
+  });
 
-    return Object.entries(total).map(([produto, quantidade]) => ({
-      produto,
-      quantidade
-    }));
-  };
+  // 🔴 SUBTRAI PAGAMENTOS
+  pagamentos.forEach(pag => {
+    if (!Array.isArray(pag.itens)) return;
+
+    // 🔥 só desconta se estiver pago
+    if (pag.status !== "pago") return;
+
+    pag.itens.forEach(item => {
+      const nome = item.produto;
+
+      total[nome] = (total[nome] || 0) - Number(item.quantidade || 0);
+    });
+  });
+
+  return Object.entries(total).map(([produto, quantidade]) => ({
+    produto,
+    quantidade: quantidade < 0 ? 0 : quantidade // evita negativo
+  }));
+};
 
   // ================= PAGINAÇÃO =================
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
