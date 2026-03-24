@@ -2,6 +2,8 @@ import db from "../config/db.js";
 
 // ========================= CRIAR VENDA =========================
 export const criarVenda = async (req, res) => {
+  console.log("REQ BODY:", req.body);
+console.log("TIPO DE ITENS:", Array.isArray(req.body.itens), req.body.itens);
   let client;
   try {
     client = await db.connect();
