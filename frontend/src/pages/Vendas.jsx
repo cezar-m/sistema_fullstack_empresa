@@ -4,7 +4,8 @@ import DashboardLayout from "../layouts/DashboardLayout";
 
 const PaginaVendas = () => {
   // ====================== STATES ======================
-  const [produto, setProduto] = useState("");
+  const [produtos, setProdutos] = useState([]);
+  const [produtoSelecionado, setProdutoSelecionado] = useState("");
   const [quantidade, setQuantidade] = useState(1);
   const [itens, setItens] = useState([]);
   const [vendas, setVendas] = useState([]);
@@ -21,16 +22,53 @@ const PaginaVendas = () => {
     return () => clearTimeout(timer);
   }, [mensagem]);
 
+  // ====================== BUSCAR PRODUTOS ======================
+  const listarProdutos = async () => {
+    try {
+      const res = await api.get("/produtos"); // precisa do endpoint correto
+      if (Array.isArray(res.data)) setProdutos(res.data);
+    } catch (err) {
+      console.error("Erro ao buscar produtos:", err);
+    }
+  };
+
+  useEffect(() => {
+    listarProdutos();
+    listarVendas();
+  }, []);
+
   // ====================== ADICIONAR ITEM ======================
   const adicionarItem = () => {
-    if (!produto || quantidade <= 0) return;
-    setItens([...itens, { produto, quantidade }]); // 'produto' consistente
-    setProduto("");
+    if (!produtoSelecionado || quantidade <= 0) {
+      setMensagem("Selecione um produto e quantidade válida!");
+      setTipoMensagem("erro");
+      return;
+    }
+
+    const produtoObj = produtos.find((p) => p.id === Number(produtoSelecionado));
+    if (!produtoObj) {
+      setMensagem("Produto inválido!");
+      setTipoMensagem("erro");
+      return;
+    }
+
+    setItens([
+      ...itens,
+      {
+        id_produto: produtoObj.id,
+        nome: produtoObj.nome,
+        preco: Number(produtoObj.preco),
+        quantidade,
+      },
+    ]);
+    setProdutoSelecionado("");
     setQuantidade(1);
   };
 
   // ====================== CRIAR VENDA ======================
   const criarVenda = async () => {
+    if (itens.length === 0) return;
+
     try {
       await api.post("/vendas", { itens });
       setItens([]);
@@ -49,38 +87,36 @@ const PaginaVendas = () => {
   const listarVendas = async () => {
     try {
       const res = await api.get("/vendas");
-      if (Array.isArray(res.data)) {
-        setVendas(res.data);
-      } else {
-        console.log("Resposta inesperada:", res.data);
-        setVendas([]);
-      }
-    } catch (error) {
-      console.log("Erro ao buscar vendas:", error);
+      if (Array.isArray(res.data)) setVendas(res.data);
+      else setVendas([]);
+    } catch (err) {
+      console.error("Erro ao listar vendas:", err);
       setVendas([]);
     }
   };
 
-  useEffect(() => {
-    listarVendas();
-  }, []);
+  // ====================== CALCULAR TOTAL VENDA ======================
+  const calcularTotal = (venda) => {
+    if (venda.total) return Number(venda.total);
+    if (!Array.isArray(venda.itens)) return 0;
+    return venda.itens.reduce(
+      (acc, item) => acc + (Number(item.preco) || 0) * (Number(item.quantidade) || 0),
+      0
+    );
+  };
 
   // ====================== TOTAL VENDIDO POR PRODUTO ======================
   const totalVendidoPorProduto = () => {
     const total = {};
     vendas.forEach((venda) => {
-      if (Array.isArray(venda.itens)) {
-        venda.itens.forEach((item) => {
-          const nomeProduto = item.produto || "Produto Desconhecido";
-          const qtd = Number(item.quantidade) || 0;
-          total[nomeProduto] = (total[nomeProduto] || 0) + qtd;
-        });
-      }
+      if (!Array.isArray(venda.itens)) return;
+      venda.itens.forEach((item) => {
+        const nome = item.produto || item.nome || "Produto Desconhecido";
+        const qtd = Number(item.quantidade) || 0;
+        total[nome] = (total[nome] || 0) + qtd;
+      });
     });
-    return Object.entries(total).map(([produto, quantidade]) => ({
-      produto,
-      quantidade,
-    }));
+    return Object.entries(total).map(([produto, quantidade]) => ({ produto, quantidade }));
   };
 
   // ====================== PAGINAÇÃO ======================
@@ -90,56 +126,41 @@ const PaginaVendas = () => {
     paginaAtual * vendasPorPagina
   );
 
-  // ====================== CALCULAR TOTAL DA VENDA ======================
-  const calcularTotal = (venda) => {
-    if (venda.total) return Number(venda.total);
-    if (!Array.isArray(venda.itens)) return 0;
-    return venda.itens.reduce(
-      (acc, item) =>
-        acc + (Number(item.preco) || 0) * (Number(item.quantidade) || 0),
-      0
-    );
-  };
-
   // ====================== RENDER ======================
   return (
     <DashboardLayout>
       <div className="container mt-4">
         {/* ================= NOVA VENDA ================= */}
         <div className="card shadow mb-4">
-          <div className="card-header bg-primary text-white fw-bold">
-            Nova Venda
-          </div>
+          <div className="card-header bg-primary text-white fw-bold">Nova Venda</div>
           <div className="card-body">
             <div className="row g-3">
               <div className="col-md-6">
-                <div className="d-flex align-items-center mb-2 gap-2">
-                  <label className="fw-semibold mb-0" style={{ width: "150px" }}>
-                    Nome do Produto:
-                  </label>
-                  <input
-                    className="form-control w-75"
-                    placeholder="Digite o nome do produto"
-                    value={produto}
-                    onChange={(e) => setProduto(e.target.value)}
-                  />
-                </div>
+                <label className="fw-semibold">Produto:</label>
+                <select
+                  className="form-select"
+                  value={produtoSelecionado}
+                  onChange={(e) => setProdutoSelecionado(e.target.value)}
+                >
+                  <option value="">Selecione um produto</option>
+                  {produtos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome} - R$ {Number(p.preco).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="col-md-3">
-                <div className="d-flex align-items-center mb-2 gap-2">
-                  <label className="fw-semibold mb-0" style={{ width: "150px" }}>
-                    Quantidade:
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control w-25"
-                    min="1"
-                    value={quantidade}
-                    onChange={(e) => setQuantidade(Number(e.target.value))}
-                  />
-                </div>
+                <label className="fw-semibold">Quantidade:</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  min="1"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(Number(e.target.value))}
+                />
               </div>
-              <div className="col-md-3">
+              <div className="col-md-3 d-flex align-items-end">
                 <button className="btn btn-success w-100" onClick={adicionarItem}>
                   Adicionar
                 </button>
@@ -148,21 +169,18 @@ const PaginaVendas = () => {
 
             {itens.length > 0 && (
               <div className="mt-3">
+                <h6>Itens adicionados:</h6>
                 {itens.map((item, index) => (
                   <div key={index}>
-                    {item.produto} - {item.quantidade}x
+                    {item.nome} - {item.quantidade}x - R$ {(item.preco * item.quantidade).toFixed(2)}
                   </div>
                 ))}
               </div>
             )}
 
             <div className="text-center mt-3">
-              <button
-                className="btn btn-success px-4"
-                onClick={criarVenda}
-                disabled={itens.length === 0}
-              >
-                Finalizar Vendas
+              <button className="btn btn-success px-4" onClick={criarVenda} disabled={itens.length === 0}>
+                Finalizar Venda
               </button>
             </div>
           </div>
@@ -193,13 +211,11 @@ const PaginaVendas = () => {
                             {Array.isArray(venda.itens) &&
                               venda.itens.map((item, index) => (
                                 <div key={index}>
-                                  {item.produto || "Produto Desconhecido"} - {item.quantidade || 0}x
+                                  {item.produto || item.nome} - {item.quantidade}x
                                 </div>
                               ))}
                           </td>
-                          <td className="fw-bold text-success">
-                            R$ {calcularTotal(venda).toFixed(2)}
-                          </td>
+                          <td className="fw-bold text-success">R$ {calcularTotal(venda).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -211,9 +227,7 @@ const PaginaVendas = () => {
                     {Array.from({ length: totalPaginas }).map((_, index) => (
                       <button
                         key={index}
-                        className={`btn btn-sm mx-1 ${
-                          paginaAtual === index + 1 ? "btn-success" : "btn-outline-secondary"
-                        }`}
+                        className={`btn btn-sm mx-1 ${paginaAtual === index + 1 ? "btn-success" : "btn-outline-secondary"}`}
                         onClick={() => setPaginaAtual(index + 1)}
                       >
                         {index + 1}
@@ -226,11 +240,9 @@ const PaginaVendas = () => {
           </div>
         </div>
 
-        {/* ================= RESUMO TOTAL POR PRODUTO ================= */}
+        {/* ================= TOTAL VENDIDO POR PRODUTO ================= */}
         <div className="card shadow mt-4">
-          <div className="card-header bg-info text-white fw-bold">
-            Total Vendido por Produto
-          </div>
+          <div className="card-header bg-info text-white fw-bold">Total Vendido por Produto</div>
           <div className="card-body">
             {vendas.length === 0 ? (
               <p>Nenhuma venda realizada ainda</p>
@@ -255,14 +267,9 @@ const PaginaVendas = () => {
           </div>
         </div>
 
-        {/* ================= MENSAGEM DE ALERTA ================= */}
+        {/* ================= MENSAGEM ================= */}
         {mensagem && (
-          <div
-            className={`alert mt-3 ${
-              tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"
-            }`}
-            role="alert"
-          >
+          <div className={`alert mt-3 ${tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"}`} role="alert">
             {mensagem}
           </div>
         )}
