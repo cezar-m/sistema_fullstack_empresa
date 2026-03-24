@@ -130,17 +130,13 @@ export default function PaginaVendas() {
   };
 
   // ================= TOTAL POR PRODUTO =================
- const totalVendidoPorProduto = () => {
+const totalVendidoPorProduto = () => {
   const total = {};
 
   vendas.forEach(venda => {
-    if (!Array.isArray(venda.itens)) return;
-
     venda.itens.forEach(item => {
-      const nome = item.produto || item.nome;
-      if (!nome) return;
-
-      total[nome] = (total[nome] || 0) + Number(item.quantidade || 0);
+      const nome = item.produto;
+      total[nome] = (total[nome] || 0) + item.quantidade;
     });
   });
 
@@ -149,6 +145,7 @@ export default function PaginaVendas() {
     quantidade
   }));
 };
+
 
   // ================= PAGINAÇÃO =================
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
