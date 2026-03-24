@@ -3,6 +3,7 @@ import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function PaginaVendas() {
+  const [pagamentos, setPagamentos] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [produtoSelecionado, setProdutoSelecionado] = useState("");
   const [quantidade, setQuantidade] = useState(1);
