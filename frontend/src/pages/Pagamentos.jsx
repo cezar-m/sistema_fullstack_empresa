@@ -251,6 +251,8 @@ export default function Pagamentos() {
                 {parcelasTabela.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
+                     {/* Pega o nome do produto do item_venda */}
+                    <td>{p.itens && p.itens.length > 0 ? p.itens.map(i => i.produto).join(", ") : "-"}</td>
                     <td>R$ {Number(p.valor).toFixed(2)}</td>
                     <td className={getStatusClass(p.status)}>{p.status}</td>
                     <td>
