@@ -15,22 +15,23 @@ export default function PaginaVendas() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const prod = await api.get("/products");
-        setProdutos(Array.isArray(prod.data) ? prod.data : []);
+        const resProd = await api.get("/products");
+        setProdutos(Array.isArray(resProd.data) ? resProd.data : []);
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao buscar produtos:", err);
         setMensagem("Erro ao carregar produtos");
         setTipoMensagem("erro");
       }
 
       try {
-        const ven = await api.get("/vendas");
-        setVendas(Array.isArray(ven.data) ? ven.data : []);
+        const resVendas = await api.get("/vendas");
+        setVendas(Array.isArray(resVendas.data) ? resVendas.data : []);
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao listar vendas:", err);
         setVendas([]);
       }
     };
+
     fetchData();
   }, []);
 
@@ -42,17 +43,17 @@ export default function PaginaVendas() {
       return;
     }
 
-    const produtoObj = produtos.find(p => p.id === Number(produtoSelecionado));
-    if (!produtoObj) {
+    const produto = produtos.find(p => p.id === Number(produtoSelecionado));
+    if (!produto) {
       setMensagem("Produto inválido");
       setTipoMensagem("erro");
       return;
     }
 
     setItens([...itens, {
-      id_produto: Number(produtoObj.id),
-      nome: produtoObj.nome,
-      preco: Number(produtoObj.preco),
+      id_produto: produto.id,
+      nome: produto.nome,
+      preco: Number(produto.preco),
       quantidade: Number(quantidade)
     }]);
 
@@ -71,12 +72,12 @@ export default function PaginaVendas() {
     try {
       await api.post("/vendas", { itens });
       setItens([]);
-      const ven = await api.get("/vendas");
-      setVendas(Array.isArray(ven.data) ? ven.data : []);
+      const resVendas = await api.get("/vendas");
+      setVendas(Array.isArray(resVendas.data) ? resVendas.data : []);
       setMensagem("Venda realizada com sucesso!");
       setTipoMensagem("sucesso");
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao criar venda:", err);
       setMensagem(err.response?.data?.erro || "Erro ao criar venda");
       setTipoMensagem("erro");
     }
@@ -90,6 +91,7 @@ export default function PaginaVendas() {
   return (
     <DashboardLayout>
       <div className="container mt-4">
+
         <div className="card mb-4">
           <div className="card-header">Nova Venda</div>
           <div className="card-body">
@@ -97,7 +99,9 @@ export default function PaginaVendas() {
               <div className="col-md-6">
                 <select className="form-select" value={produtoSelecionado} onChange={e => setProdutoSelecionado(e.target.value)}>
                   <option value="">Selecione um produto</option>
-                  {produtos.map(p => <option key={p.id} value={p.id}>{p.nome} - R$ {Number(p.preco).toFixed(2)}</option>)}
+                  {produtos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome} - R$ {Number(p.preco).toFixed(2)}</option>
+                  ))}
                 </select>
               </div>
               <div className="col-md-3">
@@ -108,9 +112,13 @@ export default function PaginaVendas() {
               </div>
             </div>
 
-            {itens.length > 0 && itens.map((i, idx) => (
-              <div key={idx}>{i.nome} - {i.quantidade}x - R$ {(i.preco*i.quantidade).toFixed(2)}</div>
-            ))}
+            {itens.length > 0 && (
+              <div className="mt-2">
+                {itens.map((i, idx) => (
+                  <div key={idx}>{i.nome} - {i.quantidade}x - R$ {(i.preco*i.quantidade).toFixed(2)}</div>
+                ))}
+              </div>
+            )}
 
             <button className="btn btn-primary mt-3" onClick={criarVenda} disabled={itens.length===0}>Finalizar Venda</button>
           </div>
