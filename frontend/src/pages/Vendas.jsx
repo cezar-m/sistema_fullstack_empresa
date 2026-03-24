@@ -69,21 +69,25 @@ const PaginaVendas = () => {
 	const totalVendidoPorProduto = () => {
   	const total = {};
 
+  	const totalVendidoPorProduto = () => {
+  	const total = {};
+
   	vendas.forEach(venda => {
     	if (Array.isArray(venda.itens)) {
       		venda.itens.forEach(item => {
-        	const nomeProduto = item.nome; // <-- aqui pega o nome correto
+        	const nomeProduto = item.produto; // <- usar 'produto', pois é o que vem da API
         	if (total[nomeProduto]) {
           		total[nomeProduto] += item.quantidade;
         	} else {
           		total[nomeProduto] = item.quantidade;
         	}
-      	});
-      }
+      		});
+    	}
   	});
 
-  	return Object.entries(total).map(([produto, quantidade]) => ({ produto, quantidade }));
-};
+  		return Object.entries(total).map(([produto, quantidade]) => ({ produto, quantidade }));
+	};
+
 	
 	/* ========================= PAGINAÇÃO ========================= */
 	
