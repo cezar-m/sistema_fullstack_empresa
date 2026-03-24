@@ -94,22 +94,22 @@ export default function PaginaVendas() {
       return;
     }
 
-    // 🔥 EVITA DUPLICAR ITEM
     const itemExistente = itens.find(i => i.id_produto === id);
 
+    // 🔥 CORREÇÃO AQUI (soma correta)
+    const quantidadeAtual = itemExistente ? itemExistente.quantidade : 0;
+
+    if (quantidadeAtual + qtd > produtoObj.quantidade) {
+      setMensagem(`Estoque insuficiente. Máximo: ${produtoObj.quantidade}`);
+      setTipoMensagem("erro");
+      return;
+    }
+
     if (itemExistente) {
-      const novaQtd = itemExistente.quantidade + qtd;
-
-      if (novaQtd > produtoObj.quantidade) {
-        setMensagem(`Estoque insuficiente. Máximo: ${produtoObj.quantidade}`);
-        setTipoMensagem("erro");
-        return;
-      }
-
       setItens(prev =>
         prev.map(i =>
           i.id_produto === id
-            ? { ...i, quantidade: novaQtd }
+            ? { ...i, quantidade: i.quantidade + qtd }
             : i
         )
       );
@@ -125,14 +125,7 @@ export default function PaginaVendas() {
       ]);
     }
 
-    // 🔥 ATUALIZA ESTOQUE NA TELA (tempo real)
-    setProdutos(prev =>
-      prev.map(p =>
-        p.id === id
-          ? { ...p, quantidade: p.quantidade - qtd }
-          : p
-      )
-    );
+    // ❌ REMOVIDO BUG DO ESTOQUE AQUI (NÃO MEXER NO FRONT)
 
     setProdutoSelecionado("");
     setQuantidade(1);
@@ -151,8 +144,7 @@ export default function PaginaVendas() {
 
       setItens([]);
 
-      // 🔥 ATUALIZA TUDO
-      await listarProdutos();
+      await listarProdutos(); // 🔥 estoque atualizado correto
       await listarVendas();
 
       setPaginaAtual(1);
@@ -162,8 +154,7 @@ export default function PaginaVendas() {
     } catch (err) {
       console.error("Erro criar venda:", err.response?.data);
 
-      // 🔥 SE DER ERRO VOLTA ESTOQUE NA TELA
-      await listarProdutos();
+      await listarProdutos(); // 🔥 garante consistência
 
       setMensagem(err.response?.data?.erro || "Erro ao criar venda");
       setTipoMensagem("erro");
@@ -186,7 +177,7 @@ export default function PaginaVendas() {
 
     vendas.forEach(venda => {
       venda.itens.forEach(item => {
-        const nome = item.produto;
+        const nome = item.produto || item.nome; // 🔥 correção
         total[nome] = (total[nome] || 0) + item.quantidade;
       });
     });
@@ -264,7 +255,7 @@ export default function PaginaVendas() {
             {/* ITENS */}
             {itens.length > 0 && (
               <div className="mt-3">
-                <h6>Itens adicionados:</h6>
+        <h6>Itens adicionados:</h6>
 
                 {itens.map((i, idx) => (
                   <div key={idx}>
