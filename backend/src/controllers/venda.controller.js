@@ -114,7 +114,7 @@ export const criarVenda = async (req, res) => {
 };
 
 /* =========================
-   LISTAR VENDAS
+   LISTAR VENDAS COM PRODUTOS COMPLETOS
 ========================= */
 export const listarVendas = async (req, res) => {
   try {
@@ -126,7 +126,9 @@ export const listarVendas = async (req, res) => {
         v.data_venda,
         json_agg(
           json_build_object(
+            'id', p.id,
             'produto', p.nome,
+            'imagem', p.imagem,
             'quantidade', iv.quantidade,
             'preco', iv.preco_unitario
           )
@@ -142,9 +144,10 @@ export const listarVendas = async (req, res) => {
     );
 
     return res.json(result.rows);
-
   } catch (err) {
     console.error("ERRO LISTAR VENDAS:", err);
     return res.status(500).json({ erro: err.message });
   }
 };
+
+
