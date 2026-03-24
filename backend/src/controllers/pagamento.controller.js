@@ -152,19 +152,38 @@ export const listarParcelasPorPagamento = async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      `SELECT * FROM parcelas
-       WHERE id_pagamento = $1
-       ORDER BY numero_parcela`,
+      `SELECT 
+         pa.id,
+         pa.numero_parcela,
+         pa.valor,
+         pa.status,
+         pa.data_vencimento,
+         json_agg(
+           json_build_object(
+             'produto', pr.nome,
+             'quantidade', iv.quantidade,
+             'preco', iv.preco_unitario
+           )
+         ) AS itens
+       FROM parcelas pa
+       JOIN pagamentos p ON p.id = pa.id_pagamento
+       JOIN vendas v ON v.id = p.id_venda
+       JOIN itens_venda iv ON iv.id_venda = v.id
+       JOIN produtos pr ON pr.id = iv.id_produto
+       WHERE pa.id_pagamento = $1
+       GROUP BY pa.id
+       ORDER BY pa.numero_parcela`,
       [Number(id)]
     );
 
     return res.json(result.rows);
 
   } catch (err) {
-    console.error(err);
+    console.error("ERRO LISTAR PARCELAS:", err);
     return res.status(500).json({ erro: err.message });
   }
 };
+
 
 /* =========================
    ATUALIZAR PARCELA
