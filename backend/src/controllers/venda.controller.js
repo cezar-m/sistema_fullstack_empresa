@@ -1,3 +1,4 @@
+// src/controllers/venda.controller.js
 import db from "../config/db.js";
 
 // ================= CRIAR VENDA =================
@@ -8,19 +9,16 @@ export const criarVenda = async (req, res) => {
     await client.query("BEGIN");
 
     const id_usuario = req.user?.id;
-
-    if (!id_usuario) {
-      throw new Error("Usuário não autenticado");
-    }
+    if (!id_usuario) throw new Error("Usuário não autenticado");
 
     const { itens } = req.body;
-
     if (!Array.isArray(itens) || itens.length === 0) {
       throw new Error("Itens obrigatórios");
     }
 
     let total = 0;
 
+    // Cria a venda com total 0
     const vendaRes = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW()) RETURNING id`,
@@ -37,7 +35,7 @@ export const criarVenda = async (req, res) => {
         throw new Error("Produto ou quantidade inválidos");
       }
 
-      // 🔥 PRODUTO + ESTOQUE
+      // Pega o produto com FOR UPDATE para bloquear a linha
       const prod = await client.query(
         `SELECT 
            p.id,
@@ -51,9 +49,7 @@ export const criarVenda = async (req, res) => {
         [id_produto]
       );
 
-      if (prod.rows.length === 0) {
-        throw new Error("Produto não encontrado");
-      }
+      if (prod.rows.length === 0) throw new Error("Produto não encontrado");
 
       const produtoDB = prod.rows[0];
 
@@ -62,17 +58,16 @@ export const criarVenda = async (req, res) => {
       }
 
       const preco = Number(produtoDB.preco);
-
       total += preco * quantidade;
 
-      // item
+      // Insere item da venda
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
         [id_venda, id_produto, quantidade, preco]
       );
 
-      // 🔥 BAIXA ESTOQUE CORRETA
+      // Baixa o estoque
       await client.query(
         `UPDATE estoque
          SET quantidade = quantidade - $1
@@ -81,8 +76,9 @@ export const criarVenda = async (req, res) => {
       );
     }
 
+    // Atualiza total da venda
     await client.query(
-      "UPDATE vendas SET total=$1 WHERE id=$2",
+      `UPDATE vendas SET total=$1 WHERE id=$2`,
       [total, id_venda]
     );
 
@@ -93,7 +89,6 @@ export const criarVenda = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("ERRO CRIAR VENDA:", err);
-
     res.status(400).json({ erro: err.message });
   } finally {
     client.release();
@@ -104,8 +99,7 @@ export const criarVenda = async (req, res) => {
 export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
-      `
-      SELECT 
+      `SELECT 
         v.id,
         v.total,
         v.data_venda,
@@ -124,15 +118,20 @@ export const listarVendas = async (req, res) => {
       LEFT JOIN produtos p ON p.id = iv.id_produto
       WHERE v.id_usuario = $1
       GROUP BY v.id
-      ORDER BY v.id DESC
-      `,
+      ORDER BY v.id DESC`,
       [req.user.id]
     );
 
-    res.json(result.rows);
+    // Converte JSON de itens
+    const vendasFormatadas = result.rows.map(v => ({
+      ...v,
+      itens: v.itens || []
+    }));
+
+    res.json(vendasFormatadas);
 
   } catch (err) {
     console.error("ERRO LISTAR VENDAS:", err);
-    res.status(500).json({ erro: "Erro listar vendas" });
+    res.status(500).json({ erro: "Erro ao listar vendas" });
   }
 };
