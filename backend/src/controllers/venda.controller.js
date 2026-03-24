@@ -14,7 +14,7 @@ export const criarVenda = async (req, res) => {
     const id_usuario = req.user.id;
 
     const { itens } = req.body;
-    if (!itens || !Array.isArray(itens) || itens.length === 0) {
+    if (!Array.isArray(itens) || itens.length === 0) {
       await client.query("ROLLBACK");
       return res.status(400).json({ erro: "Itens obrigatórios" });
     }
@@ -29,29 +29,41 @@ export const criarVenda = async (req, res) => {
     const id_venda = vendaRes.rows[0].id;
 
     for (const item of itens) {
-      const idProduto = Number(item.id_produto);
-      const quantidade = Number(item.quantidade);
+      // Garante que sempre são números
+      const idProduto = parseInt(item.id_produto);
+      const quantidade = parseInt(item.quantidade);
 
       if (!idProduto || !quantidade || quantidade <= 0) {
-        throw new Error(`Produto ou quantidade inválidos: id=${item.id_produto}, qtd=${item.quantidade}`);
+        throw new Error(`Produto ou quantidade inválidos: ${JSON.stringify(item)}`);
       }
 
-      const prodRes = await client.query(`SELECT id, nome, preco FROM produtos WHERE id = $1`, [idProduto]);
-      if (prodRes.rows.length === 0) throw new Error(`Produto ID ${idProduto} não encontrado`);
-
+      const prodRes = await client.query(
+        `SELECT id, nome, preco FROM produtos WHERE id = $1`,
+        [idProduto]
+      );
+      if (prodRes.rows.length === 0) {
+        throw new Error(`Produto ID ${idProduto} não encontrado`);
+      }
       const produto = prodRes.rows[0];
 
-      const estoqueRes = await client.query(`SELECT quantidade FROM estoque WHERE id_produto = $1`, [idProduto]);
-      if (estoqueRes.rows.length === 0) throw new Error(`Produto "${produto.nome}" sem estoque`);
-      if (quantidade > Number(estoqueRes.rows[0].quantidade)) throw new Error(`Estoque insuficiente para "${produto.nome}"`);
+      const estoqueRes = await client.query(
+        `SELECT quantidade FROM estoque WHERE id_produto = $1`,
+        [idProduto]
+      );
+      if (estoqueRes.rows.length === 0) {
+        throw new Error(`Produto "${produto.nome}" sem estoque`);
+      }
+      if (quantidade > parseInt(estoqueRes.rows[0].quantidade)) {
+        throw new Error(`Estoque insuficiente para "${produto.nome}"`);
+      }
 
-      const subtotal = Number(produto.preco) * quantidade;
+      const subtotal = parseFloat(produto.preco) * quantidade;
       total += subtotal;
 
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
-        [id_venda, idProduto, quantidade, Number(produto.preco)]
+        [id_venda, idProduto, quantidade, parseFloat(produto.preco)]
       );
 
       await client.query(
@@ -82,7 +94,7 @@ export const listarVendas = async (req, res) => {
         v.id,
         v.total,
         v.data_venda,
-        json_agg(
+        COALESCE(json_agg(
           json_build_object(
             'id_produto', p.id,
             'produto', p.nome,
@@ -90,7 +102,7 @@ export const listarVendas = async (req, res) => {
             'preco', iv.preco_unitario,
             'quantidade', iv.quantidade
           )
-        ) AS itens
+        ) FILTER (WHERE iv.id IS NOT NULL), '[]') AS itens
       FROM vendas v
       LEFT JOIN itens_venda iv ON iv.id_venda = v.id
       LEFT JOIN produtos p ON p.id = iv.id_produto
