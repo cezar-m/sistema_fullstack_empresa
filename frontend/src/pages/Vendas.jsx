@@ -65,6 +65,25 @@ const PaginaVendas = () => {
 	useEffect(() => {
 		listarVendas();
 	}, []);
+
+	const totalVendidoPorProduto = () => {
+  	const total = {};
+
+  	vendas.forEach(venda => {
+    	if (Array.isArray(venda.itens)) {
+      		venda.itens.forEach(item => {
+        	const nomeProduto = item.nome; // <-- aqui pega o nome correto
+        	if (total[nomeProduto]) {
+          		total[nomeProduto] += item.quantidade;
+        	} else {
+          		total[nomeProduto] = item.quantidade;
+        	}
+      	});
+      }
+  	});
+
+  	return Object.entries(total).map(([produto, quantidade]) => ({ produto, quantidade }));
+};
 	
 	/* ========================= PAGINAÇÃO ========================= */
 	
@@ -216,6 +235,36 @@ const PaginaVendas = () => {
 					 )}	
 					</div>
 				</div>
+
+				{/* Resumo total por produto */}
+<div className="card shadow mt-4">
+  <div className="card-header bg-info text-white fw-bold">
+    Total Vendido por Produto
+  </div>
+  <div className="card-body">
+    {vendas.length === 0 ? (
+      <p>Nenhuma venda realizada ainda</p>
+    ) : (
+      <table className="table table-bordered">
+        <thead>
+          <tr>
+            <th>Produto</th>
+            <th>Quantidade Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {totalVendidoPorProduto().map((item, index) => (
+            <tr key={index}>
+              <td>{item.produto}</td>
+              <td>{item.quantidade}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+</div>
+
 					
 			</div>
 		</DashboardLayout>
