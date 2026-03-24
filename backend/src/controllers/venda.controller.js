@@ -64,7 +64,6 @@ export const criarVenda = async (req, res) => {
 
     await client.query("COMMIT");
 
-    // ✅ CORREÇÃO PRINCIPAL
     res.json({ sucesso: true, id: id_venda, total });
 
   } catch (err) {
@@ -76,8 +75,7 @@ export const criarVenda = async (req, res) => {
   }
 };
 
-
-// ================= LISTAR =================
+// ================= LISTAR VENDAS =================
 export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
