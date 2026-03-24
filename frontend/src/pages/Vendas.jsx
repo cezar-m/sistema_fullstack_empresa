@@ -49,6 +49,7 @@ export default function PaginaVendas() {
   useEffect(() => {
     listarProdutos();
     listarVendas();
+    listarPagamentos();
   }, []);
 
   // ================= ADICIONAR ITEM =================
@@ -152,6 +153,16 @@ export default function PaginaVendas() {
     produto,
     quantidade: quantidade < 0 ? 0 : quantidade // evita negativo
   }));
+};
+
+  const listarPagamentos = async () => {
+  try {
+    const res = await api.get("/pagamentos");
+    setPagamentos(Array.isArray(res.data) ? res.data : []);
+  } catch (err) {
+    console.error("Erro ao listar pagamentos:", err);
+    setPagamentos([]);
+  }
 };
 
   // ================= PAGINAÇÃO =================
