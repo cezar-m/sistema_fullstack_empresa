@@ -25,24 +25,23 @@ export default function Pagamentos() {
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
-   const totalPorProduto = () => {
-    const estoqueInicial = {};
+  const totalPorProduto = () => {
+  const estoqueInicial = {};
 
-    // pega estoque inicial dos produtos
-    produtos.forEach(p => {
-      estoqueInicial[p.nome] = p.quantidade;
+  produtos.forEach(p => {
+    estoqueInicial[p.nome] = p.quantidade;
+  });
+
+  const total = { ...estoqueInicial };
+
+  pagamentos.forEach(p => {
+    p.itens?.forEach(i => {
+      total[i.produto] = (total[i.produto] || 0) - i.quantidade;
     });
+  });
 
-    const total = { ...estoqueInicial };
-
-    vendas.forEach(venda => {
-      venda.itens.forEach(i => {
-        total[i.produto] = (total[i.produto] || 0) - i.quantidade;
-      });
-    });
-
-    return total;
-  };
+  return total;
+};
 
   /* ================= LOAD ================= */
   const carregar = async () => {
@@ -312,6 +311,16 @@ export default function Pagamentos() {
             ))}
           </tbody>
         </table>
+
+        <div className="card p-3 mt-4">
+  <h5>Estoque Atual (Simulado)</h5>
+
+  {Object.entries(totalPorProduto()).map(([produto, qtd]) => (
+    <div key={produto}>
+      {produto}: {qtd}
+    </div>
+  ))}
+</div>
 
         {/* ================= PARCELAS ================= */}
         {parcelasSelecionadas.length > 0 && (
