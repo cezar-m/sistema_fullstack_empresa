@@ -59,7 +59,7 @@ export const criarPagamento = async (req, res) => {
   } finally {
     if (client) client.release();
   }
-
+}
 /* =========================
    ATUALIZAR STATUS PAGAMENTO
 ========================= */
