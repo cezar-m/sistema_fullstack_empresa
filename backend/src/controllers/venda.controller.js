@@ -1,82 +1,83 @@
 import db from "../config/db.js";
 
-// CRIAR VENDA
 export const criarVenda = async (req, res) => {
-  const client = await db.connect();
+  let client;
 
   try {
+    client = await db.connect();
     await client.query("BEGIN");
 
-    const id_usuario = req.user?.id;
-    if (!id_usuario) throw new Error("Usuário não autenticado");
-
     const { itens } = req.body;
-    if (!Array.isArray(itens) || itens.length === 0)
-      throw new Error("Itens obrigatórios");
+    const id_usuario = req.user.id;
 
-    let total = 0;
-
-    // Criar venda inicial
-    const vendaRes = await client.query(
-      `INSERT INTO vendas (id_usuario, total, data_venda)
-       VALUES ($1, 0, NOW()) RETURNING id`,
-      [id_usuario]
-    );
-    const id_venda = vendaRes.rows[0].id;
-
-    for (const item of itens) {
-      const id_produto = Number(item.id_produto);
-      const quantidade = Number(item.quantidade);
-      if (!id_produto || quantidade <= 0)
-        throw new Error("Produto ou quantidade inválidos");
-
-      // Seleciona produto com lock
-      const prodRes = await client.query(
-        `SELECT p.id, p.nome, p.preco, e.quantidade
-         FROM produtos p
-         JOIN estoque e ON e.id_produto = p.id
-         WHERE p.id = $1
-         FOR UPDATE`,
-        [id_produto]
-      );
-
-      if (prodRes.rows.length === 0)
-        throw new Error("Produto não encontrado");
-
-      const produtoDB = prodRes.rows[0];
-      if (produtoDB.quantidade < quantidade)
-        throw new Error(`Estoque insuficiente para ${produtoDB.nome}`);
-
-      total += produtoDB.preco * quantidade;
-
-      // Insere item
-      await client.query(
-        `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
-         VALUES ($1, $2, $3, $4)`,
-        [id_venda, id_produto, quantidade, produtoDB.preco]
-      );
-
-      // Atualiza estoque
-      await client.query(
-        `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
-        [quantidade, id_produto]
-      );
+    if (!itens || itens.length === 0) {
+      throw new Error("Nenhum item informado");
     }
 
-    // Atualiza total da venda
-    await client.query(`UPDATE vendas SET total=$1 WHERE id=$2`, [total, id_venda]);
+    // cria venda
+    const venda = await client.query(
+      `INSERT INTO vendas (id_usuario, total, status)
+       VALUES ($1, 0, 'finalizado')
+       RETURNING id`,
+      [id_usuario]
+    );
+
+    const id_venda = venda.rows[0].id;
+    let total = 0;
+
+    for (const item of itens) {
+      const produto = await client.query(
+        `SELECT preco, quantidade FROM produtos WHERE id = $1`,
+        [item.id_produto]
+      );
+
+      if (produto.rows.length === 0) {
+        throw new Error("Produto não encontrado");
+      }
+
+      const preco = Number(produto.rows[0].preco);
+      const estoque = Number(produto.rows[0].quantidade);
+
+      if (estoque < item.quantidade) {
+        throw new Error("Estoque insuficiente");
+      }
+
+      // 🔥 DESCONTA ESTOQUE (AQUI É O CORRETO)
+      await client.query(
+        `UPDATE produtos
+         SET quantidade = quantidade - $1
+         WHERE id = $2`,
+        [item.quantidade, item.id_produto]
+      );
+
+      // salva item
+      await client.query(
+        `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco)
+         VALUES ($1, $2, $3, $4)`,
+        [id_venda, item.id_produto, item.quantidade, preco]
+      );
+
+      total += preco * item.quantidade;
+    }
+
+    await client.query(
+      `UPDATE vendas SET total = $1 WHERE id = $2`,
+      [total, id_venda]
+    );
 
     await client.query("COMMIT");
 
-    res.json({ sucesso: true, id: id_venda, total });
+    res.json({ id: id_venda });
+
   } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("ERRO CRIAR VENDA:", err);
+    if (client) await client.query("ROLLBACK");
+    console.error("ERRO VENDA:", err);
     res.status(400).json({ erro: err.message });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
+
 
 // LISTAR VENDAS
 export const listarVendas = async (req, res) => {
