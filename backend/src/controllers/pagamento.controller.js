@@ -36,7 +36,6 @@ export const criarPagamento = async (req, res) => {
 
     const valor = Number(vendaResult.rows[0].total);
 
-    // define status
     const statusFinal =
       parcelas.length > 0 ? "pendente" : (status_pagamento || "pago");
 
@@ -51,10 +50,10 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamentoResult.rows[0].id;
 
-    // cria parcelas
+    // parcelas
     if (Array.isArray(parcelas) && parcelas.length > 0) {
-      const queries = parcelas.map((p) =>
-        client.query(
+      for (const p of parcelas) {
+        await client.query(
           `INSERT INTO parcelas
            (id_pagamento, numero_parcela, valor, data_vencimento, status)
            VALUES ($1, $2, $3, $4, $5)`,
@@ -65,13 +64,9 @@ export const criarPagamento = async (req, res) => {
             p.data_vencimento,
             "pendente"
           ]
-        )
-      );
-
-      await Promise.all(queries);
+        );
+      }
     }
-
-    // 🚫 NÃO MEXE NO ESTOQUE AQUI
 
     await client.query("COMMIT");
 
@@ -88,7 +83,7 @@ export const criarPagamento = async (req, res) => {
 };
 
 /* =========================
-   MARCAR COMO PAGO
+   ATUALIZAR STATUS PAGAMENTO
 ========================= */
 export const marcarComoPago = async (req, res) => {
   let client;
@@ -97,9 +92,10 @@ export const marcarComoPago = async (req, res) => {
     await client.query("BEGIN");
 
     const { id } = req.params;
+    const { status } = req.body;
 
     const pagamento = await client.query(
-      `SELECT status FROM pagamentos WHERE id = $1`,
+      `SELECT * FROM pagamentos WHERE id = $1`,
       [Number(id)]
     );
 
@@ -107,14 +103,24 @@ export const marcarComoPago = async (req, res) => {
       throw new Error("Pagamento não encontrado");
     }
 
-    if (pagamento.rows[0].status === "pago") {
-      throw new Error("Pagamento já está pago");
+    const pag = pagamento.rows[0];
+
+    // 🔥 SE CANCELAR → REMOVE ITENS DA VENDA
+    if (status === "cancelado") {
+      await client.query(
+        `DELETE FROM itens_venda WHERE id_venda = $1`,
+        [pag.id_venda]
+      );
+
+      await client.query(
+        `UPDATE vendas SET total = 0 WHERE id = $1`,
+        [pag.id_venda]
+      );
     }
 
-    // 🔥 SOMENTE MUDA STATUS
     await client.query(
-      `UPDATE pagamentos SET status = 'pago' WHERE id = $1`,
-      [Number(id)]
+      `UPDATE pagamentos SET status = $1 WHERE id = $2`,
+      [status, Number(id)]
     );
 
     await client.query("COMMIT");
@@ -123,7 +129,7 @@ export const marcarComoPago = async (req, res) => {
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
-    console.error("ERRO MARCAR COMO PAGO:", err);
+    console.error("ERRO PAGAMENTO:", err);
     res.status(400).json({ erro: err.message });
 
   } finally {
@@ -138,10 +144,6 @@ export const listarPagamentosPorId = async (req, res) => {
   try {
     const id_usuario = req.user?.id;
 
-    if (!id_usuario) {
-      throw new Error("Usuário não autenticado");
-    }
-
     const result = await db.query(
       `SELECT 
         p.id,
@@ -149,16 +151,18 @@ export const listarPagamentosPorId = async (req, res) => {
         p.valor,
         p.status,
         p.data_pagamento,
-        json_agg(
-          json_build_object(
-            'produto', pr.nome,
-            'quantidade', iv.quantidade
-          )
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'produto', pr.nome,
+              'quantidade', iv.quantidade
+            )
+          ) FILTER (WHERE iv.id IS NOT NULL), '[]'
         ) AS itens
        FROM pagamentos p
        JOIN vendas v ON v.id = p.id_venda
-       JOIN itens_venda iv ON iv.id_venda = v.id
-       JOIN produtos pr ON pr.id = iv.id_produto
+       LEFT JOIN itens_venda iv ON iv.id_venda = v.id
+       LEFT JOIN produtos pr ON pr.id = iv.id_produto
        WHERE v.id_usuario = $1
        GROUP BY p.id
        ORDER BY p.id DESC`,
@@ -181,12 +185,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      `SELECT 
-        id,
-        numero_parcela,
-        valor,
-        data_vencimento,
-        status
+      `SELECT id, numero_parcela, valor, data_vencimento, status
        FROM parcelas
        WHERE id_pagamento = $1
        ORDER BY numero_parcela`,
@@ -209,10 +208,6 @@ export const atualizarParcela = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!["pendente", "pago", "cancelado"].includes(status)) {
-      throw new Error("Status inválido");
-    }
-
     await db.query(
       `UPDATE parcelas SET status = $1 WHERE id = $2`,
       [status, Number(id)]
@@ -221,7 +216,7 @@ export const atualizarParcela = async (req, res) => {
     res.json({ sucesso: true });
 
   } catch (err) {
-    console.error("ERRO ATUALIZAR PARCELA:", err);
+    console.error("ERRO PARCELA:", err);
     res.status(400).json({ erro: err.message });
   }
 };
