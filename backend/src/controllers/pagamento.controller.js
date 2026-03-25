@@ -16,7 +16,6 @@ export const criarPagamento = async (req, res) => {
       throw new Error("Dados incompletos");
     }
 
-    // pega valor da venda
     const venda = await client.query(
       `SELECT total FROM vendas WHERE id = $1`,
       [id_venda]
@@ -27,10 +26,8 @@ export const criarPagamento = async (req, res) => {
     }
 
     const valor = venda.rows[0].total;
-
     const status = parcelas.length > 0 ? "pendente" : "pago";
 
-    // cria pagamento
     const pagamento = await client.query(
       `INSERT INTO pagamentos
        (id_venda, id_forma_pagamento, valor, status, data_pagamento)
@@ -41,7 +38,6 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamento.rows[0].id;
 
-    // cria parcelas
     for (const p of parcelas) {
       await client.query(
         `INSERT INTO parcelas
@@ -87,56 +83,21 @@ export const marcarComoPago = async (req, res) => {
 
     const pag = pagamento.rows[0];
 
-    // 🔥 pega status atual antes de mudar
-    const statusAtual = pag.status;
-
-    // 🔥 SÓ devolve estoque se NÃO estava cancelado antes
-    if (status === "cancelado" && statusAtual !== "cancelado") {
-
-      const itens = await client.query(
-        `SELECT * FROM itens_venda WHERE id_venda = $1`,
-        [pag.id_venda]
-      );
-
-      for (const item of itens.rows) {
-        await client.query(
-          `UPDATE produtos
-           SET quantidade = quantidade + $1
-           WHERE id = $2`,
-          [item.quantidade, item.id_produto]
-        );
-      }
-
+    // 🔥 NÃO MEXE NO ESTOQUE AQUI
+    if (status === "cancelado") {
       await client.query(
         `UPDATE vendas SET status = 'cancelado' WHERE id = $1`,
         [pag.id_venda]
       );
     }
 
-    // 🔥 SE VOLTAR DE CANCELADO PRA PAGO → DESCONTA DE NOVO
-    if (status === "pago" && statusAtual === "cancelado") {
-
-      const itens = await client.query(
-        `SELECT * FROM itens_venda WHERE id_venda = $1`,
-        [pag.id_venda]
-      );
-
-      for (const item of itens.rows) {
-        await client.query(
-          `UPDATE produtos
-           SET quantidade = quantidade - $1
-           WHERE id = $2`,
-          [item.quantidade, item.id_produto]
-        );
-      }
-
+    if (status === "pago") {
       await client.query(
         `UPDATE vendas SET status = 'finalizado' WHERE id = $1`,
         [pag.id_venda]
       );
     }
 
-    // atualiza pagamento
     await client.query(
       `UPDATE pagamentos SET status = $1 WHERE id = $2`,
       [status, id]
@@ -148,13 +109,12 @@ export const marcarComoPago = async (req, res) => {
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
-    console.error("ERRO:", err);
+    console.error(err);
     res.status(400).json({ erro: err.message });
   } finally {
     if (client) client.release();
   }
 };
-
 
 /* =========================
    LISTAR PAGAMENTOS
@@ -169,17 +129,20 @@ export const listarPagamentosPorId = async (req, res) => {
         p.valor,
         p.status,
         p.data_pagamento,
-        json_agg(
-          json_build_object(
-            'produto', pr.nome,
-            'quantidade', iv.quantidade
-          )
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'produto', pr.nome,
+              'quantidade', iv.quantidade
+            )
+          ) FILTER (WHERE iv.id IS NOT NULL), '[]'
         ) AS itens
        FROM pagamentos p
        JOIN vendas v ON v.id = p.id_venda
-       JOIN itens_venda iv ON iv.id_venda = v.id
-       JOIN produtos pr ON pr.id = iv.id_produto
+       LEFT JOIN itens_venda iv ON iv.id_venda = v.id
+       LEFT JOIN produtos pr ON pr.id = iv.id_produto
        WHERE v.id_usuario = $1
+       AND v.status != 'cancelado'
        GROUP BY p.id
        ORDER BY p.id DESC`,
       [id_usuario]
@@ -199,7 +162,10 @@ export const listarParcelasPorPagamento = async (req, res) => {
   const { id } = req.params;
 
   const result = await db.query(
-    `SELECT * FROM parcelas WHERE id_pagamento = $1`,
+    `SELECT id, numero_parcela, valor, data_vencimento, status
+     FROM parcelas
+     WHERE id_pagamento = $1
+     ORDER BY numero_parcela`,
     [id]
   );
 
@@ -224,12 +190,8 @@ export const atualizarParcela = async (req, res) => {
        SET status = $1 
        WHERE id = $2 
        RETURNING id_pagamento`,
-      [status, Number(id)]
+      [status, id]
     );
-
-    if (parcela.rows.length === 0) {
-      throw new Error("Parcela não encontrada");
-    }
 
     const id_pagamento = parcela.rows[0].id_pagamento;
 
@@ -239,17 +201,12 @@ export const atualizarParcela = async (req, res) => {
       [id_pagamento]
     );
 
-    if (pendentes.rows.length === 0) {
-      await client.query(
-        `UPDATE pagamentos SET status = 'pago' WHERE id = $1`,
-        [id_pagamento]
-      );
-    } else {
-      await client.query(
-        `UPDATE pagamentos SET status = 'pendente' WHERE id = $1`,
-        [id_pagamento]
-      );
-    }
+    await client.query(
+      `UPDATE pagamentos 
+       SET status = $1 
+       WHERE id = $2`,
+      [pendentes.rows.length === 0 ? "pago" : "pendente", id_pagamento]
+    );
 
     await client.query("COMMIT");
 
@@ -257,10 +214,8 @@ export const atualizarParcela = async (req, res) => {
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
-    console.error("ERRO PARCELA:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     if (client) client.release();
   }
 };
-
