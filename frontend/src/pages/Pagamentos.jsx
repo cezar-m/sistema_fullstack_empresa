@@ -6,10 +6,12 @@ export default function Pagamentos() {
   const [produtos, setProdutos] = useState([]);
   const [formas, setFormas] = useState([]);
   const [pagamentos, setPagamentos] = useState([]);
+  const [vendas, setVendas] = useState([]);
 
   const [produtoId, setProdutoId] = useState("");
   const [quantidade, setQuantidade] = useState(1);
   const [formaPagamento, setFormaPagamento] = useState("");
+  const [vendaSelecionada, setVendaSelecionada] = useState("");
 
   const [valor, setValor] = useState(0);
   const [qtdParcelas, setQtdParcelas] = useState(1);
@@ -42,6 +44,10 @@ export default function Pagamentos() {
 
       const resPag = await api.get("/pagamentos");
       setPagamentos(resPag.data || []);
+
+      const resVendas = await api.get("/vendas");
+      setVendas(resVendas.data || []);
+
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
     }
@@ -83,31 +89,24 @@ export default function Pagamentos() {
 
   /* ========================= CRIAR PAGAMENTO ========================= */
   const criarPagamento = async () => {
-    if (!produtoId || !formaPagamento) return setMensagem("Preencha tudo");
+    if (!vendaSelecionada || !formaPagamento) return setMensagem("Selecione venda e forma");
 
     try {
       setLoading(true);
 
-      // 🔥 cria venda CORRIGIDO (envia itens)
-      const venda = await api.post("/vendas", {
-        itens: [{ id_produto: Number(produtoId), quantidade }],
-      });
-
-      const id_venda = venda.data.id;
-
-      // 🔥 cria pagamento
       await api.post("/pagamentos", {
-        id_venda,
+        id_venda: Number(vendaSelecionada),
         id_forma_pagamento: Number(formaPagamento),
         parcelas,
       });
 
-      setMensagem("Venda e pagamento cadastrados com sucesso!");
+      setMensagem("Pagamento cadastrado com sucesso!");
       setProdutoId("");
       setQuantidade(1);
       setFormaPagamento("");
       setQtdParcelas(1);
       setParcelas([]);
+      setVendaSelecionada("");
 
       carregar();
     } catch (err) {
@@ -172,6 +171,18 @@ export default function Pagamentos() {
         {/* ================= FORMULARIO ================= */}
         <div className="card p-3 mb-3">
           <div className="row g-2">
+
+            <div className="col-md-3">
+              <select className="form-select" value={vendaSelecionada} onChange={(e) => setVendaSelecionada(e.target.value)}>
+                <option value="">Venda</option>
+                {vendas.map(v => (
+                  <option key={v.id} value={v.id}>
+                    Venda #{v.id} - R$ {v.total}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="col-md-3">
               <select className="form-select" value={produtoId} onChange={(e) => setProdutoId(e.target.value)}>
                 <option value="">Produto</option>
@@ -189,13 +200,16 @@ export default function Pagamentos() {
               <input className="form-control" value={`R$ ${valor.toFixed(2)}`} readOnly />
             </div>
 
-            <div className="col-md-3">
+            <div className="col-md-2">
               <select className="form-select" value={formaPagamento} onChange={(e) => setFormaPagamento(e.target.value)}>
                 <option value="">Forma</option>
                 {formas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
 
+          </div>
+
+          <div className="row mt-2">
             <div className="col-md-2">
               <input type="number" className="form-control" value={qtdParcelas} min="1" onChange={(e) => setQtdParcelas(Number(e.target.value))} />
             </div>
@@ -208,7 +222,7 @@ export default function Pagamentos() {
           </div>
         </div>
 
-       {/* ================= TABELA DE PAGAMENTOS ================= */}
+        {/* ================= TABELA DE PAGAMENTOS ================= */}
         <table className="table table-striped">
           <thead>
             <tr>
@@ -221,7 +235,6 @@ export default function Pagamentos() {
           <tbody>
             {listaPaginada.map(p => (
               <tr key={p.id}>
-                {/* Pega o nome do produto do item_venda */}
                 <td>{p.itens && p.itens.length > 0 ? p.itens.map(i => i.produto).join(", ") : "-"}</td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
                 <td className={getStatusClass(p.status)}>{p.status}</td>
@@ -233,7 +246,7 @@ export default function Pagamentos() {
             ))}
           </tbody>
         </table>
-        
+
         {/* ================= TABELA DE PARCELAS ================= */}
         {parcelasTabela.length > 0 && (
           <div className="card p-3 mt-3">
@@ -252,8 +265,7 @@ export default function Pagamentos() {
                 {parcelasTabela.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
-                     {/* Pega o nome do produto do item_venda */}
-                    <td>{p.itens && p.itens.length > 0 ? p.itens.map(i => i.produto).join(", ") : "-"}</td>
+                    <td>-</td>
                     <td>R$ {Number(p.valor).toFixed(2)}</td>
                     <td className={getStatusClass(p.status)}>{p.status}</td>
                     <td>
@@ -265,7 +277,6 @@ export default function Pagamentos() {
             </table>
           </div>
         )}
-
 
         {/* ================= MODAL PAGAMENTO ================= */}
         {editarPagamento && (
