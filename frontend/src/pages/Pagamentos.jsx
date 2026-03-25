@@ -25,6 +25,25 @@ export default function Pagamentos() {
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
+   const totalPorProduto = () => {
+    const estoqueInicial = {};
+
+    // pega estoque inicial dos produtos
+    produtos.forEach(p => {
+      estoqueInicial[p.nome] = p.quantidade;
+    });
+
+    const total = { ...estoqueInicial };
+
+    vendas.forEach(venda => {
+      venda.itens.forEach(i => {
+        total[i.produto] = (total[i.produto] || 0) - i.quantidade;
+      });
+    });
+
+    return total;
+  };
+
   /* ================= LOAD ================= */
   const carregar = async () => {
     try {
