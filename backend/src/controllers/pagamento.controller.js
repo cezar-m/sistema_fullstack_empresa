@@ -87,8 +87,11 @@ export const marcarComoPago = async (req, res) => {
 
     const pag = pagamento.rows[0];
 
-    // 🔥 SE CANCELAR → DEVOLVE ESTOQUE (CORRETO)
-    if (status === "cancelado") {
+    // 🔥 pega status atual antes de mudar
+    const statusAtual = pag.status;
+
+    // 🔥 SÓ devolve estoque se NÃO estava cancelado antes
+    if (status === "cancelado" && statusAtual !== "cancelado") {
 
       const itens = await client.query(
         `SELECT * FROM itens_venda WHERE id_venda = $1`,
@@ -104,14 +107,36 @@ export const marcarComoPago = async (req, res) => {
         );
       }
 
-      // NÃO apaga venda
       await client.query(
         `UPDATE vendas SET status = 'cancelado' WHERE id = $1`,
         [pag.id_venda]
       );
     }
 
-    // atualizar pagamento
+    // 🔥 SE VOLTAR DE CANCELADO PRA PAGO → DESCONTA DE NOVO
+    if (status === "pago" && statusAtual === "cancelado") {
+
+      const itens = await client.query(
+        `SELECT * FROM itens_venda WHERE id_venda = $1`,
+        [pag.id_venda]
+      );
+
+      for (const item of itens.rows) {
+        await client.query(
+          `UPDATE produtos
+           SET quantidade = quantidade - $1
+           WHERE id = $2`,
+          [item.quantidade, item.id_produto]
+        );
+      }
+
+      await client.query(
+        `UPDATE vendas SET status = 'finalizado' WHERE id = $1`,
+        [pag.id_venda]
+      );
+    }
+
+    // atualiza pagamento
     await client.query(
       `UPDATE pagamentos SET status = $1 WHERE id = $2`,
       [status, id]
@@ -123,11 +148,13 @@ export const marcarComoPago = async (req, res) => {
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
+    console.error("ERRO:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     if (client) client.release();
   }
 };
+
 
 /* =========================
    LISTAR PAGAMENTOS
