@@ -190,6 +190,7 @@ export const atualizarParcela = async (req, res) => {
 
   res.json({ sucesso: true });
 };
+}
 
 /* =========================
    ATUALIZAR PARCELA
