@@ -26,6 +26,7 @@ export const criarPagamento = async (req, res) => {
     }
 
     const valor = venda.rows[0].total;
+
     const status = parcelas.length > 0 ? "pendente" : "pago";
 
     const pagamento = await client.query(
@@ -38,6 +39,7 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamento.rows[0].id;
 
+    // criar parcelas
     for (const p of parcelas) {
       await client.query(
         `INSERT INTO parcelas
@@ -60,59 +62,23 @@ export const criarPagamento = async (req, res) => {
 };
 
 /* =========================
-   ATUALIZAR STATUS
+   ATUALIZAR STATUS PAGAMENTO
 ========================= */
 export const marcarComoPago = async (req, res) => {
-  let client;
-
   try {
-    client = await db.connect();
-    await client.query("BEGIN");
-
     const { id } = req.params;
     const { status } = req.body;
 
-    const pagamento = await client.query(
-      `SELECT * FROM pagamentos WHERE id = $1`,
-      [id]
-    );
-
-    if (pagamento.rows.length === 0) {
-      throw new Error("Pagamento não encontrado");
-    }
-
-    const pag = pagamento.rows[0];
-
-    // 🔥 NÃO MEXE NO ESTOQUE AQUI
-    if (status === "cancelado") {
-      await client.query(
-        `UPDATE vendas SET status = 'cancelado' WHERE id = $1`,
-        [pag.id_venda]
-      );
-    }
-
-    if (status === "pago") {
-      await client.query(
-        `UPDATE vendas SET status = 'finalizado' WHERE id = $1`,
-        [pag.id_venda]
-      );
-    }
-
-    await client.query(
+    await db.query(
       `UPDATE pagamentos SET status = $1 WHERE id = $2`,
       [status, id]
     );
 
-    await client.query("COMMIT");
-
     res.json({ sucesso: true });
 
   } catch (err) {
-    if (client) await client.query("ROLLBACK");
     console.error(err);
     res.status(400).json({ erro: err.message });
-  } finally {
-    if (client) client.release();
   }
 };
 
@@ -135,14 +101,14 @@ export const listarPagamentosPorId = async (req, res) => {
               'produto', pr.nome,
               'quantidade', iv.quantidade
             )
-          ) FILTER (WHERE iv.id IS NOT NULL), '[]'
+          ) FILTER (WHERE iv.id IS NOT NULL),
+          '[]'
         ) AS itens
        FROM pagamentos p
        JOIN vendas v ON v.id = p.id_venda
        LEFT JOIN itens_venda iv ON iv.id_venda = v.id
        LEFT JOIN produtos pr ON pr.id = iv.id_produto
        WHERE v.id_usuario = $1
-       AND v.status != 'cancelado'
        GROUP BY p.id
        ORDER BY p.id DESC`,
       [id_usuario]
@@ -156,20 +122,25 @@ export const listarPagamentosPorId = async (req, res) => {
 };
 
 /* =========================
-   PARCELAS
+   LISTAR PARCELAS
 ========================= */
 export const listarParcelasPorPagamento = async (req, res) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-  const result = await db.query(
-    `SELECT id, numero_parcela, valor, data_vencimento, status
-     FROM parcelas
-     WHERE id_pagamento = $1
-     ORDER BY numero_parcela`,
-    [id]
-  );
+    const result = await db.query(
+      `SELECT id, numero_parcela, valor, data_vencimento, status
+       FROM parcelas
+       WHERE id_pagamento = $1
+       ORDER BY numero_parcela`,
+      [id]
+    );
 
-  res.json(result.rows);
+    res.json(result.rows);
+
+  } catch (err) {
+    res.status(400).json({ erro: err.message });
+  }
 };
 
 /* =========================
@@ -193,6 +164,10 @@ export const atualizarParcela = async (req, res) => {
       [status, id]
     );
 
+    if (parcela.rows.length === 0) {
+      throw new Error("Parcela não encontrada");
+    }
+
     const id_pagamento = parcela.rows[0].id_pagamento;
 
     const pendentes = await client.query(
@@ -214,8 +189,10 @@ export const atualizarParcela = async (req, res) => {
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
+    console.error(err);
     res.status(400).json({ erro: err.message });
   } finally {
     if (client) client.release();
   }
 };
+
