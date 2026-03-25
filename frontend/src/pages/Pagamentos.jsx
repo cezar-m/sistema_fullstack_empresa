@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/api";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function Pagamentos() {
@@ -28,13 +28,16 @@ export default function Pagamentos() {
   /* ================= LOAD ================= */
   const carregar = async () => {
     try {
-      const res1 = await api.get("/products/listar");
-      const res2 = await api.get("/formas-pagamento");
-      const res3 = await api.get("/pagamentos");
+      const [res1, res2, res3] = await Promise.all([
+        api.get("/products/listar"),
+        api.get("/formas-pagamento"),
+        api.get("/pagamentos")
+      ]);
 
       setProdutos(res1.data || []);
       setFormas(res2.data || []);
       setPagamentos(res3.data || []);
+
     } catch (err) {
       console.error(err);
       setMensagem("Erro ao carregar dados");
@@ -48,6 +51,7 @@ export default function Pagamentos() {
   /* ================= CALC VALOR ================= */
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
+
     if (produto) {
       setValor(Number(produto.preco) * quantidade);
     } else {
@@ -97,7 +101,7 @@ export default function Pagamentos() {
     try {
       setLoading(true);
 
-      // 🔥 CRIA VENDA (isso que alimenta o TOTAL VENDIDO)
+      // 🔥 CRIA VENDA
       const venda = await api.post("/vendas", {
         itens: [{ id_produto: Number(produtoId), quantidade }],
       });
@@ -109,7 +113,7 @@ export default function Pagamentos() {
         parcelas,
       });
 
-      setMensagem("Sucesso!");
+      setMensagem("Pagamento criado com sucesso!");
 
       setProdutoId("");
       setQuantidade(1);
@@ -132,6 +136,7 @@ export default function Pagamentos() {
     try {
       const res = await api.get(`/pagamentos/${p.id}/parcelas`);
       setParcelasSelecionadas(res.data || []);
+      setEditarPagamento(p); // 🔥 importante pra saber qual tá aberto
     } catch {
       setMensagem("Erro ao buscar parcelas");
     }
@@ -148,7 +153,7 @@ export default function Pagamentos() {
       carregar();
 
     } catch {
-      setMensagem("Erro ao editar");
+      setMensagem("Erro ao editar pagamento");
     }
   };
 
@@ -160,11 +165,27 @@ export default function Pagamentos() {
       });
 
       setEditarParcela(null);
-      verParcelas(editarPagamento);
+
+      // 🔥 atualiza lista sem reload geral
+      setParcelasSelecionadas(prev =>
+        prev.map(p =>
+          p.id === editarParcela.id
+            ? { ...p, status: novoStatusParcela }
+            : p
+        )
+      );
 
     } catch {
       setMensagem("Erro parcela");
     }
+  };
+
+  /* ================= STATUS COR ================= */
+  const corStatus = (status) => {
+    if (status === "pendente") return "text-danger fw-bold";
+    if (status === "pago") return "text-success fw-bold";
+    if (status === "cancelado") return "text-secondary fw-bold";
+    return "";
   };
 
   return (
@@ -175,12 +196,14 @@ export default function Pagamentos() {
 
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
-        {/* FORM */}
+        {/* ================= FORM ================= */}
         <div className="card p-3 mb-3">
           <div className="row">
 
             <div className="col-md-3">
-              <select className="form-select" value={produtoId} onChange={(e) => setProdutoId(e.target.value)}>
+              <select className="form-select"
+                value={produtoId}
+                onChange={(e) => setProdutoId(e.target.value)}>
                 <option value="">Produto</option>
                 {produtos.map(p => (
                   <option key={p.id} value={p.id}>
@@ -191,16 +214,21 @@ export default function Pagamentos() {
             </div>
 
             <div className="col-md-2">
-              <input type="number" className="form-control" value={quantidade}
+              <input type="number" className="form-control"
+                value={quantidade}
+                min="1"
                 onChange={(e) => setQuantidade(Number(e.target.value))} />
             </div>
 
             <div className="col-md-2">
-              <input className="form-control" value={`R$ ${valor.toFixed(2)}`} readOnly />
+              <input className="form-control"
+                value={`R$ ${valor.toFixed(2)}`}
+                readOnly />
             </div>
 
             <div className="col-md-3">
-              <select className="form-select" value={formaPagamento}
+              <select className="form-select"
+                value={formaPagamento}
                 onChange={(e) => setFormaPagamento(e.target.value)}>
                 <option value="">Forma</option>
                 {formas.map(f => (
@@ -210,19 +238,23 @@ export default function Pagamentos() {
             </div>
 
             <div className="col-md-2">
-              <input type="number" className="form-control" value={qtdParcelas}
+              <input type="number" className="form-control"
+                value={qtdParcelas}
+                min="1"
                 onChange={(e) => setQtdParcelas(Number(e.target.value))} />
             </div>
 
           </div>
 
-          <button className="btn btn-success mt-3" onClick={criarPagamento}>
-            Salvar
+          <button className="btn btn-success mt-3"
+            onClick={criarPagamento}
+            disabled={loading}>
+            {loading ? "Salvando..." : "Salvar"}
           </button>
         </div>
 
-        {/* TABELA */}
-        <table className="table">
+        {/* ================= TABELA ================= */}
+        <table className="table table-striped">
           <thead>
             <tr>
               <th>Produto</th>
@@ -242,9 +274,10 @@ export default function Pagamentos() {
                   }
                 </td>
                 <td>R$ {Number(p.valor).toFixed(2)}</td>
-                <td>{p.status}</td>
+                <td className={corStatus(p.status)}>{p.status}</td>
                 <td>
-                  <button className="btn btn-info btn-sm me-2" onClick={() => verParcelas(p)}>
+                  <button className="btn btn-info btn-sm me-2"
+                    onClick={() => verParcelas(p)}>
                     Parcelas
                   </button>
 
@@ -261,17 +294,29 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* PARCELAS */}
+        {/* ================= PARCELAS ================= */}
         {parcelasSelecionadas.length > 0 && (
           <div className="card p-3 mt-3">
-            <h5>Parcelas</h5>
+            <h5>Parcelamento</h5>
+
             <table className="table">
+              <thead>
+                <tr>
+                  <th>Nº</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+
               <tbody>
                 {parcelasSelecionadas.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
                     <td>R$ {Number(p.valor).toFixed(2)}</td>
-                    <td>{p.status}</td>
+                    <td>{new Date(p.data_vencimento).toLocaleDateString()}</td>
+                    <td className={corStatus(p.status)}>{p.status}</td>
                     <td>
                       <button className="btn btn-primary btn-sm"
                         onClick={() => {
@@ -288,13 +333,13 @@ export default function Pagamentos() {
           </div>
         )}
 
-        {/* MODAL PAGAMENTO */}
+        {/* ================= MODAL PAGAMENTO ================= */}
         {editarPagamento && (
           <div className="modal d-block" style={{ background: "#0008" }}>
             <div className="modal-dialog">
               <div className="modal-content p-3">
 
-                <h5>Editar</h5>
+                <h5>Editar Pagamento</h5>
 
                 <select className="form-select"
                   value={novoStatus}
@@ -304,16 +349,24 @@ export default function Pagamentos() {
                   <option value="cancelado">Cancelado</option>
                 </select>
 
-                <button className="btn btn-primary mt-2" onClick={salvarEdicao}>
-                  Salvar
-                </button>
+                <div className="mt-3">
+                  <button className="btn btn-secondary me-2"
+                    onClick={() => setEditarPagamento(null)}>
+                    Fechar
+                  </button>
+
+                  <button className="btn btn-primary"
+                    onClick={salvarEdicao}>
+                    Salvar
+                  </button>
+                </div>
 
               </div>
             </div>
           </div>
         )}
 
-        {/* MODAL PARCELA */}
+        {/* ================= MODAL PARCELA ================= */}
         {editarParcela && (
           <div className="modal d-block" style={{ background: "#0008" }}>
             <div className="modal-dialog">
@@ -329,9 +382,17 @@ export default function Pagamentos() {
                   <option value="cancelado">Cancelado</option>
                 </select>
 
-                <button className="btn btn-primary mt-2" onClick={salvarParcela}>
-                  Salvar
-                </button>
+                <div className="mt-3">
+                  <button className="btn btn-secondary me-2"
+                    onClick={() => setEditarParcela(null)}>
+                    Fechar
+                  </button>
+
+                  <button className="btn btn-primary"
+                    onClick={salvarParcela}>
+                    Salvar
+                  </button>
+                </div>
 
               </div>
             </div>
