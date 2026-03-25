@@ -179,36 +179,61 @@ export const listarParcelasPorPagamento = async (req, res) => {
   res.json(result.rows);
 };
 
-export const atualizarParcela = async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
-  await db.query(
-    `UPDATE parcelas SET status = $1 WHERE id = $2`,
-    [status, id]
-  );
-
-  res.json({ sucesso: true });
-};
-}
-
 /* =========================
    ATUALIZAR PARCELA
 ========================= */
 export const atualizarParcela = async (req, res) => {
+  let client;
+
   try {
+    client = await db.connect();
+    await client.query("BEGIN");
+
     const { id } = req.params;
     const { status } = req.body;
 
-    await db.query(
-      `UPDATE parcelas SET status = $1 WHERE id = $2`,
+    const parcela = await client.query(
+      `UPDATE parcelas 
+       SET status = $1 
+       WHERE id = $2 
+       RETURNING id_pagamento`,
       [status, Number(id)]
     );
+
+    if (parcela.rows.length === 0) {
+      throw new Error("Parcela não encontrada");
+    }
+
+    const id_pagamento = parcela.rows[0].id_pagamento;
+
+    const pendentes = await client.query(
+      `SELECT 1 FROM parcelas 
+       WHERE id_pagamento = $1 AND status != 'pago'`,
+      [id_pagamento]
+    );
+
+    if (pendentes.rows.length === 0) {
+      await client.query(
+        `UPDATE pagamentos SET status = 'pago' WHERE id = $1`,
+        [id_pagamento]
+      );
+    } else {
+      await client.query(
+        `UPDATE pagamentos SET status = 'pendente' WHERE id = $1`,
+        [id_pagamento]
+      );
+    }
+
+    await client.query("COMMIT");
 
     res.json({ sucesso: true });
 
   } catch (err) {
+    if (client) await client.query("ROLLBACK");
     console.error("ERRO PARCELA:", err);
     res.status(400).json({ erro: err.message });
+  } finally {
+    if (client) client.release();
   }
 };
+
