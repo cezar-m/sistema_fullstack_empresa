@@ -12,20 +12,22 @@ export const criarPagamento = async (req, res) => {
     if (!id_usuario) throw new Error("Usuário não autenticado");
 
     const { id_venda, id_forma_pagamento, parcelas } = req.body;
-    if (!id_venda || !id_forma_pagamento) throw new Error("Venda ou forma de pagamento não informados");
+    if (!id_venda || !id_forma_pagamento)
+      throw new Error("Venda ou forma de pagamento não informados");
 
-    // pega itens da venda
+    // Pega itens da venda
     const { rows: itens } = await client.query(
-      `SELECT id_produto, quantidade, preco 
-       FROM itens_venda iv
-       JOIN produtos p ON p.id = iv.id_produto
+      `SELECT id_produto, quantidade, preco_unitario AS preco
+       FROM itens_venda
        WHERE id_venda=$1`,
       [id_venda]
     );
 
+    if (!itens.length) throw new Error("Itens da venda não encontrados");
+
     const valor_total = itens.reduce((acc, i) => acc + i.quantidade * i.preco, 0);
 
-    // cria pagamento
+    // Cria pagamento
     const resultPagamento = await client.query(
       `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
        VALUES ($1, $2, $3, NOW()) RETURNING id`,
@@ -33,7 +35,7 @@ export const criarPagamento = async (req, res) => {
     );
     const id_pagamento = resultPagamento.rows[0].id;
 
-    // cria parcelas
+    // Cria parcelas, se existirem
     if (parcelas && parcelas.length > 0) {
       for (let parcela of parcelas) {
         await client.query(
@@ -45,11 +47,11 @@ export const criarPagamento = async (req, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ sucesso: true, id: id_pagamento });
+    res.json({ sucesso: true, id: id_pagamento, valor_total });
 
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
+    console.error("ERRO CRIAR PAGAMENTO:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     client.release();
@@ -68,16 +70,19 @@ export const marcarComoPago = async (req, res) => {
     const { status } = req.body;
     if (!status) throw new Error("Status não informado");
 
-    // atualiza status do pagamento
+    // Atualiza status do pagamento
     await client.query(`UPDATE pagamentos SET status=$1 WHERE id=$2`, [status, id]);
 
     if (status === "pago") {
-      // pega id_venda
-      const { rows: vendaRows } = await client.query(`SELECT id_venda FROM pagamentos WHERE id=$1`, [id]);
-      if (vendaRows.length === 0) throw new Error("Venda não encontrada");
+      // Pega id_venda
+      const { rows: vendaRows } = await client.query(
+        `SELECT id_venda FROM pagamentos WHERE id=$1`,
+        [id]
+      );
+      if (!vendaRows.length) throw new Error("Venda não encontrada");
       const id_venda = vendaRows[0].id_venda;
 
-      // pega todos os itens da venda
+      // Atualiza quantidade paga em cada item
       const { rows: itens } = await client.query(
         `SELECT id_produto, quantidade, COALESCE(quantidade_paga,0) AS quantidade_paga
          FROM itens_venda
@@ -86,7 +91,7 @@ export const marcarComoPago = async (req, res) => {
       );
 
       for (let i of itens) {
-        const novaQtdPaga = Math.min(i.quantidade_paga + i.quantidade, i.quantidade); // não ultrapassa total
+        const novaQtdPaga = Math.min(i.quantidade_paga + i.quantidade, i.quantidade);
         await client.query(
           `UPDATE itens_venda
            SET quantidade_paga=$1
@@ -101,7 +106,7 @@ export const marcarComoPago = async (req, res) => {
 
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
+    console.error("ERRO MARCAR PAGAMENTO COMO PAGO:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     client.release();
@@ -117,20 +122,20 @@ export const listarPagamentosPorId = async (req, res) => {
 
     const result = await db.query(
       `SELECT 
-        p.id,
-        p.valor,
-        p.status,
-        p.data_pagamento,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'produto', pr.nome,
-              'quantidade', iv.quantidade,
-              'quantidade_paga', COALESCE(iv.quantidade_paga,0)
-            )
-          ) FILTER (WHERE iv.id IS NOT NULL),
-          '[]'
-        ) AS itens
+         p.id,
+         p.valor,
+         p.status,
+         p.data_pagamento,
+         COALESCE(
+           json_agg(
+             json_build_object(
+               'produto', pr.nome,
+               'quantidade', iv.quantidade,
+               'quantidade_paga', COALESCE(iv.quantidade_paga,0)
+             )
+           ) FILTER (WHERE iv.id IS NOT NULL),
+           '[]'
+         ) AS itens
        FROM pagamentos p
        JOIN vendas v ON v.id = p.id_venda
        LEFT JOIN itens_venda iv ON iv.id_venda = v.id
@@ -144,7 +149,7 @@ export const listarPagamentosPorId = async (req, res) => {
     res.json(result.rows);
 
   } catch (err) {
-    console.error(err);
+    console.error("ERRO LISTAR PAGAMENTOS:", err);
     res.status(400).json({ erro: err.message });
   }
 };
@@ -167,7 +172,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
     res.json(result.rows);
 
   } catch (err) {
-    console.error(err);
+    console.error("ERRO LISTAR PARCELAS:", err);
     res.status(400).json({ erro: err.message });
   }
 };
@@ -185,7 +190,7 @@ export const atualizarParcelas = async (req, res) => {
     res.json({ sucesso: true });
 
   } catch (err) {
-    console.error(err);
+    console.error("ERRO ATUALIZAR PARCELA:", err);
     res.status(400).json({ erro: err.message });
   }
 };
@@ -193,7 +198,7 @@ export const atualizarParcelas = async (req, res) => {
 /* =========================
    RELATÓRIO TOTAL POR PRODUTO (Pagamentos pagos)
 ========================= */
-export const listarVendas = async (req, res) => {
+export const listarTotal = async (req, res) => {
   try {
     const id_usuario = req.user.id;
 
@@ -208,7 +213,7 @@ export const listarVendas = async (req, res) => {
        JOIN produtos p ON p.id = iv.id_produto
        JOIN pagamentos pg ON pg.id_venda = v.id
        WHERE v.id_usuario = $1
-         AND pg.status = 'pago'      -- só conta pagamentos pagos
+         AND pg.status = 'pago'
        GROUP BY p.id, p.nome
        ORDER BY total_vendido DESC`,
       [id_usuario]
@@ -217,8 +222,7 @@ export const listarVendas = async (req, res) => {
     res.json(result.rows);
 
   } catch (err) {
-    console.error("ERRO RELATÓRIO VENDAS:", err);
+    console.error("ERRO RELATÓRIO TOTAL POR PRODUTO:", err);
     res.status(400).json({ erro: err.message });
   }
 };
-
