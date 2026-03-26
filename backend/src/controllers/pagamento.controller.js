@@ -1,7 +1,7 @@
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR PAGAMENTO
+   CRIAR PAGAMENTO (várias vendas)
 ========================= */
 export const criarPagamento = async (req, res) => {
   const client = await db.connect();
@@ -11,44 +11,49 @@ export const criarPagamento = async (req, res) => {
     const id_usuario = req.user?.id;
     if (!id_usuario) throw new Error("Usuário não autenticado");
 
-    const { id_venda, id_forma_pagamento, parcelas } = req.body;
-    if (!id_venda || !id_forma_pagamento)
-      throw new Error("Venda ou forma de pagamento não informados");
+    const { ids_vendas, id_forma_pagamento, parcelas } = req.body;
+    if (!ids_vendas || ids_vendas.length === 0 || !id_forma_pagamento)
+      throw new Error("Vendas ou forma de pagamento não informadas");
 
-    // Pega itens da venda
-    const { rows: itens } = await client.query(
-      `SELECT id_produto, quantidade, preco_unitario AS preco
-       FROM itens_venda
-       WHERE id_venda=$1`,
-      [id_venda]
-    );
+    let valor_total = 0;
+    const pagamentosCriados = [];
 
-    if (!itens.length) throw new Error("Itens da venda não encontrados");
+    for (let id_venda of ids_vendas) {
+      // Pega itens da venda
+      const { rows: itens } = await client.query(
+        `SELECT quantidade, preco_unitario AS preco FROM itens_venda WHERE id_venda=$1`,
+        [id_venda]
+      );
 
-    // Calcula valor total
-    const valor_total = itens.reduce((acc, i) => acc + i.quantidade * i.preco, 0);
+      if (!itens.length) continue; // ignora venda sem itens
 
-    // Cria pagamento
-    const resultPagamento = await client.query(
-      `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
-       VALUES ($1, $2, $3, NOW()) RETURNING id`,
-      [id_venda, valor_total, "pendente"]
-    );
-    const id_pagamento = resultPagamento.rows[0].id;
+      const totalVenda = itens.reduce((acc, i) => acc + i.quantidade * i.preco, 0);
+      valor_total += totalVenda;
 
-    // Cria parcelas se existirem
-    if (parcelas && parcelas.length > 0) {
-      for (let parcela of parcelas) {
-        await client.query(
-          `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [id_pagamento, parcela.numero, parcela.valor, parcela.data_vencimento, "pendente"]
-        );
+      // Cria pagamento para esta venda
+      const resultPagamento = await client.query(
+        `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
+         VALUES ($1, $2, $3, NOW()) RETURNING id`,
+        [id_venda, totalVenda, "pendente"]
+      );
+
+      const id_pagamento = resultPagamento.rows[0].id;
+      pagamentosCriados.push({ id_pagamento, id_venda, totalVenda });
+
+      // Cria parcelas se existirem
+      if (parcelas && parcelas.length > 0) {
+        for (let parcela of parcelas) {
+          await client.query(
+            `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [id_pagamento, parcela.numero, parcela.valor, parcela.data_vencimento, "pendente"]
+          );
+        }
       }
     }
 
     await client.query("COMMIT");
-    res.json({ sucesso: true, id: id_pagamento, valor_total });
+    res.json({ sucesso: true, valor_total, pagamentosCriados });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("ERRO CRIAR PAGAMENTO:", err);
