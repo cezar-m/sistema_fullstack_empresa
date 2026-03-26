@@ -77,18 +77,30 @@ export const marcarComoPago = async (req, res) => {
     await client.query(`UPDATE pagamentos SET status=$1 WHERE id=$2`, [status, id]);
 
     if (status === "pago") {
-      // atualiza quantidade_paga de cada item da venda
-      const { rows: itens } = await client.query(
-        `SELECT id_produto, quantidade FROM itens_venda WHERE id_venda=(SELECT id_venda FROM pagamentos WHERE id=$1)`,
+      // pega o id_venda apenas uma vez
+      const { rows: vendaRows } = await client.query(
+        `SELECT id_venda FROM pagamentos WHERE id=$1`,
         [id]
       );
 
+      if (vendaRows.length === 0) throw new Error("Venda não encontrada");
+      const id_venda = vendaRows[0].id_venda;
+
+      // pega todos os itens da venda
+      const { rows: itens } = await client.query(
+        `SELECT id_produto, quantidade, COALESCE(quantidade_paga,0) AS quantidade_paga
+         FROM itens_venda
+         WHERE id_venda=$1`,
+        [id_venda]
+      );
+
       for (let i of itens) {
+        const novaQtdPaga = Math.min(i.quantidade_paga + i.quantidade, i.quantidade); // não ultrapassa quantidade total
         await client.query(
           `UPDATE itens_venda
-           SET quantidade_paga = COALESCE(quantidade_paga,0) + $1
-           WHERE id_venda=(SELECT id_venda FROM pagamentos WHERE id=$2) AND id_produto=$3`,
-          [i.quantidade, id, i.id_produto]
+           SET quantidade_paga=$1
+           WHERE id_venda=$2 AND id_produto=$3`,
+          [novaQtdPaga, id_venda, i.id_produto]
         );
       }
     }
@@ -104,6 +116,7 @@ export const marcarComoPago = async (req, res) => {
     client.release();
   }
 };
+
 
 /* =========================
    LISTAR PAGAMENTOS DO USUÁRIO
