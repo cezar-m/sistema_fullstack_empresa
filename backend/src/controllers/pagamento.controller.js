@@ -12,59 +12,76 @@ export const criarPagamento = async (req, res) => {
     const id_usuario = req.user?.id;
     if (!id_usuario) throw new Error("Usuário não autenticado");
 
-    const { id_venda, id_forma_pagamento, parcelas } = req.body;
+    const { ids_vendas, id_forma_pagamento, parcelas } = req.body;
 
-    if (!id_venda || !id_forma_pagamento)
-      throw new Error("Venda ou forma de pagamento não informados");
+    if (!ids_vendas || ids_vendas.length === 0)
+      throw new Error("Vendas não informadas");
 
-    // 🔥 NÃO DUPLICAR PAGAMENTO
-    const existe = await client.query(
-      `SELECT id FROM pagamentos WHERE id_venda=$1`,
-      [id_venda]
-    );
+    let valor_total = 0;
+    const pagamentosCriados = [];
 
-    if (existe.rows.length > 0) {
-      throw new Error("Pagamento já existe para essa venda");
+    for (let id_venda of ids_vendas) {
+
+      // 🔥 PEGAR ITENS + O QUE JÁ FOI PAGO
+      const { rows: itens } = await client.query(
+        `SELECT 
+           id_produto,
+           quantidade,
+           preco_unitario AS preco,
+           COALESCE(quantidade_paga,0) as quantidade_paga
+         FROM itens_venda
+         WHERE id_venda = $1`,
+        [id_venda]
+      );
+
+      if (!itens.length) continue;
+
+      let totalVenda = 0;
+
+      for (let item of itens) {
+
+        const pendente = item.quantidade - item.quantidade_paga;
+
+        // 🔥 BLOQUEIA PAGAMENTO DUPLICADO
+        if (pendente <= 0) continue;
+
+        totalVenda += pendente * item.preco;
+      }
+
+      // 🔥 SE JÁ FOI PAGO, NÃO CRIA OUTRO PAGAMENTO
+      if (totalVenda <= 0) continue;
+
+      valor_total += totalVenda;
+
+      const resultPagamento = await client.query(
+        `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
+         VALUES ($1, $2, $3, NOW()) RETURNING id`,
+        [id_venda, totalVenda, "pendente"]
+      );
+
+      const id_pagamento = resultPagamento.rows[0].id;
+
+      pagamentosCriados.push({ id_pagamento, id_venda, totalVenda });
+
+      // parcelas
+      if (parcelas && parcelas.length > 0) {
+        for (let parcela of parcelas) {
+          await client.query(
+            `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [id_pagamento, parcela.numero, parcela.valor, parcela.data_vencimento, "pendente"]
+          );
+        }
+      }
     }
 
-    // pega itens
-    const { rows: itens } = await client.query(
-      `SELECT quantidade, preco_unitario AS preco
-       FROM itens_venda
-       WHERE id_venda=$1`,
-      [id_venda]
-    );
-
-    if (!itens.length)
-      throw new Error("Itens da venda não encontrados");
-
-    const valor_total = itens.reduce(
-      (acc, i) => acc + i.quantidade * i.preco,
-      0
-    );
-
-    const result = await client.query(
-      `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
-       VALUES ($1, $2, 'pendente', NOW()) RETURNING id`,
-      [id_venda, valor_total]
-    );
-
-    const id_pagamento = result.rows[0].id;
-
-    // parcelas
-    if (parcelas && parcelas.length > 0) {
-      for (let p of parcelas) {
-        await client.query(
-          `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
-           VALUES ($1,$2,$3,$4,'pendente')`,
-          [id_pagamento, p.numero, p.valor, p.data_vencimento]
-        );
-      }
+    if (pagamentosCriados.length === 0) {
+      throw new Error("Todas as vendas já estão pagas");
     }
 
     await client.query("COMMIT");
 
-    res.json({ sucesso: true, id: id_pagamento });
+    res.json({ sucesso: true, valor_total, pagamentosCriados });
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -74,6 +91,7 @@ export const criarPagamento = async (req, res) => {
     client.release();
   }
 };
+
 
 /* =========================
    MARCAR COMO PAGO
@@ -94,8 +112,43 @@ export const marcarComoPago = async (req, res) => {
       [status, id]
     );
 
-    await client.query("COMMIT");
+    if (status === "pago") {
 
+      const { rows: pagamento } = await client.query(
+        `SELECT id_venda FROM pagamentos WHERE id=$1`,
+        [id]
+      );
+
+      if (!pagamento.length) throw new Error("Pagamento não encontrado");
+
+      const id_venda = pagamento[0].id_venda;
+
+      const { rows: itens } = await client.query(
+        `SELECT 
+           id_produto,
+           quantidade,
+           COALESCE(quantidade_paga,0) as quantidade_paga
+         FROM itens_venda
+         WHERE id_venda=$1`,
+        [id_venda]
+      );
+
+      for (let item of itens) {
+
+        const pendente = item.quantidade - item.quantidade_paga;
+
+        if (pendente <= 0) continue;
+
+        await client.query(
+          `UPDATE itens_venda
+           SET quantidade_paga = quantidade_paga + $1
+           WHERE id_venda=$2 AND id_produto=$3`,
+          [pendente, id_venda, item.id_produto]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
     res.json({ sucesso: true });
 
   } catch (err) {
@@ -106,6 +159,7 @@ export const marcarComoPago = async (req, res) => {
     client.release();
   }
 };
+
 
 /* =========================
    LISTAR PAGAMENTOS
