@@ -28,11 +28,13 @@ export default function Pagamentos() {
   const totalPorProduto = () => {
     const totalVendido = {};
     const totalPago = {};
-
+  
     vendas.forEach(v => {
-      totalVendido[v.produto] = (totalVendido[v.produto] || 0) + Number(v.quantidade);
+      v.itens?.forEach(item => {
+        totalVendido[item.produto] = (totalVendido[item.produto] || 0) + Number(item.quantidade);
+      });
     });
-
+  
     pagamentos.forEach(p => {
       if (p.status === "pago") {
         p.itens?.forEach(i => {
@@ -40,14 +42,15 @@ export default function Pagamentos() {
         });
       }
     });
-
+  
     const resultado = {};
     Object.keys(totalVendido).forEach(produto => {
       resultado[produto] = (totalVendido[produto] || 0) - (totalPago[produto] || 0);
     });
-
+  
     return resultado;
   };
+
 
   // ================= CARREGAR DADOS =================
   const carregar = async () => {
