@@ -24,7 +24,7 @@ export default function Pagamentos() {
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /* ================= TOTAL POR PRODUTO ================= */
+  // ================= TOTAL POR PRODUTO =================
   const totalPorProduto = () => {
     const totalVendido = {};
     const totalPago = {};
@@ -36,7 +36,7 @@ export default function Pagamentos() {
     pagamentos.forEach(p => {
       if (p.status === "pago") {
         p.itens?.forEach(i => {
-          totalPago[i.produto] = (totalPago[i.produto] || 0) + Number(i.quantidade);
+          totalPago[i.produto] = (totalPago[i.produto] || 0) + Number(i.quantidade_paga);
         });
       }
     });
@@ -49,7 +49,7 @@ export default function Pagamentos() {
     return resultado;
   };
 
-  /* ================= CARREGAR DADOS ================= */
+  // ================= CARREGAR DADOS =================
   const carregar = async () => {
     try {
       const [res1, res2, res3, res4] = await Promise.all([
@@ -70,23 +70,18 @@ export default function Pagamentos() {
     }
   };
 
-  useEffect(() => {
-    carregar();
-  }, []);
+  useEffect(() => { carregar(); }, []);
 
-  /* ================= CALCULAR VALOR ================= */
+  // ================= CALCULAR VALOR =================
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
     if (produto) setValor(Number(produto.preco) * quantidade);
     else setValor(0);
   }, [produtoId, quantidade, produtos]);
 
-  /* ================= GERAR PARCELAS ================= */
+  // ================= GERAR PARCELAS =================
   useEffect(() => {
-    if (!valor || qtdParcelas <= 1) {
-      setParcelas([]);
-      return;
-    }
+    if (!valor || qtdParcelas <= 1) { setParcelas([]); return; }
 
     const lista = [];
     let soma = 0;
@@ -103,22 +98,16 @@ export default function Pagamentos() {
     setParcelas(lista);
   }, [valor, qtdParcelas]);
 
-  /* ================= CRIAR PAGAMENTO ================= */
+  // ================= CRIAR PAGAMENTO =================
   const criarPagamento = async () => {
-    if (!produtoId || !formaPagamento) {
-      setMensagem("Preencha tudo");
-      return;
-    }
-
+    if (!produtoId || !formaPagamento) { setMensagem("Preencha tudo"); return; }
     try {
       setLoading(true);
 
-      // cria venda
       const venda = await api.post("/vendas", {
         itens: [{ id_produto: Number(produtoId), quantidade }]
       });
 
-      // cria pagamento
       await api.post("/pagamentos", {
         id_venda: venda.data.id,
         id_forma_pagamento: Number(formaPagamento),
@@ -132,45 +121,37 @@ export default function Pagamentos() {
     } catch (err) {
       console.error(err);
       setMensagem(err.response?.data?.erro || "Erro");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  /* ================= VER PARCELAS ================= */
+  // ================= VER PARCELAS =================
   const verParcelas = async (p) => {
     try {
       const res = await api.get(`/pagamentos/${p.id}/parcelas`);
       setParcelasSelecionadas(res.data || []);
       setEditarPagamento(p);
-    } catch {
-      setMensagem("Erro ao buscar parcelas");
-    }
+    } catch { setMensagem("Erro ao buscar parcelas"); }
   };
 
-  /* ================= EDITAR PAGAMENTO ================= */
+  // ================= EDITAR PAGAMENTO =================
   const salvarEdicao = async () => {
     try {
       await api.put(`/pagamentos/pago/${editarPagamento.id}`, { status: novoStatus });
       setEditarPagamento(null);
       carregar();
-    } catch {
-      setMensagem("Erro ao editar pagamento");
-    }
+    } catch { setMensagem("Erro ao editar pagamento"); }
   };
 
-  /* ================= EDITAR PARCELA ================= */
+  // ================= EDITAR PARCELA =================
   const salvarParcela = async () => {
     try {
       await api.put(`/pagamentos/parcelas/${editarParcela.id}`, { status: novoStatusParcela });
       setEditarParcela(null);
       setParcelasSelecionadas(prev => prev.map(p => p.id === editarParcela.id ? { ...p, status: novoStatusParcela } : p));
-    } catch {
-      setMensagem("Erro parcela");
-    }
+    } catch { setMensagem("Erro ao atualizar parcela"); }
   };
 
-  /* ================= STATUS COR ================= */
+  // ================= STATUS COR =================
   const corStatus = (status) => {
     if (status === "pendente") return "text-danger fw-bold";
     if (status === "pago") return "text-success fw-bold";
@@ -178,16 +159,16 @@ export default function Pagamentos() {
     return "";
   };
 
-  /* ================= RENDER ================= */
+  // ================= RENDER =================
   return (
     <DashboardLayout>
       <div className="container mt-4">
         <h3>Pagamentos</h3>
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
-        {/* ================= FORM ================= */}
+        {/* FORM */}
         <div className="card p-3 mb-3">
-          <div className="row">
+          <div className="row g-2">
             <div className="col-md-3">
               <select className="form-select" value={produtoId} onChange={(e) => setProdutoId(e.target.value)}>
                 <option value="">Produto</option>
@@ -220,7 +201,7 @@ export default function Pagamentos() {
           </button>
         </div>
 
-        {/* ================= TABELA PAGAMENTOS ================= */}
+        {/* TABELA PAGAMENTOS */}
         <table className="table table-striped">
           <thead>
             <tr>
@@ -245,38 +226,24 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        {/* ================= TABELA TOTAL POR PRODUTO ================= */}
+        {/* TOTAL POR PRODUTO */}
         <h5>Total Vendido por Produto (menos pagos)</h5>
         <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>Produto</th>
-              <th>Total</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Produto</th><th>Total</th></tr></thead>
           <tbody>
             {Object.entries(totalPorProduto()).map(([prod, qtd]) => (
-              <tr key={prod}>
-                <td>{prod}</td>
-                <td>{qtd}</td>
-              </tr>
+              <tr key={prod}><td>{prod}</td><td>{qtd}</td></tr>
             ))}
           </tbody>
         </table>
 
-        {/* ================= TABELA PARCELAS ================= */}
+        {/* PARCELAS */}
         {parcelasSelecionadas.length > 0 && (
           <div className="card p-3 mt-3">
             <h5>Parcelamento do Pagamento #{editarPagamento?.id}</h5>
             <table className="table">
               <thead>
-                <tr>
-                  <th>Nº</th>
-                  <th>Valor</th>
-                  <th>Vencimento</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
+                <tr><th>Nº</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr>
               </thead>
               <tbody>
                 {parcelasSelecionadas.map(p => (
@@ -287,9 +254,7 @@ export default function Pagamentos() {
                     <td className={corStatus(p.status)}>{p.status}</td>
                     <td>
                       <button className="btn btn-primary btn-sm"
-                        onClick={() => { setEditarParcela(p); setNovoStatusParcela(p.status); }}>
-                        Editar
-                      </button>
+                        onClick={() => { setEditarParcela(p); setNovoStatusParcela(p.status); }}>Editar</button>
                     </td>
                   </tr>
                 ))}
@@ -298,38 +263,28 @@ export default function Pagamentos() {
           </div>
         )}
 
-        {/* ================= MODAIS ================= */}
+        {/* MODAIS DE EDIÇÃO */}
         {editarPagamento && (
-          <div className="modal d-block" tabIndex="-1">
-            <div className="modal-dialog">
-              <div className="modal-content p-3">
-                <h5>Editar Pagamento</h5>
-                <select className="form-select" value={novoStatus} onChange={(e) => setNovoStatus(e.target.value)}>
-                  <option value="pendente">Pendente</option>
-                  <option value="pago">Pago</option>
-                  <option value="cancelado">Cancelado</option>
-                </select>
-                <button className="btn btn-success mt-2" onClick={salvarEdicao}>Salvar</button>
-                <button className="btn btn-secondary mt-2 ms-2" onClick={() => setEditarPagamento(null)}>Cancelar</button>
-              </div>
-            </div>
+          <div className="card p-3 mt-3 bg-light">
+            <h5>Editar Pagamento #{editarPagamento.id}</h5>
+            <select className="form-select mb-2" value={novoStatus} onChange={(e)=>setNovoStatus(e.target.value)}>
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+            <button className="btn btn-success" onClick={salvarEdicao}>Salvar</button>
           </div>
         )}
 
         {editarParcela && (
-          <div className="modal d-block" tabIndex="-1">
-            <div className="modal-dialog">
-              <div className="modal-content p-3">
-                <h5>Editar Parcela</h5>
-                <select className="form-select" value={novoStatusParcela} onChange={(e) => setNovoStatusParcela(e.target.value)}>
-                  <option value="pendente">Pendente</option>
-                  <option value="pago">Pago</option>
-                  <option value="cancelado">Cancelado</option>
-                </select>
-                <button className="btn btn-success mt-2" onClick={salvarParcela}>Salvar</button>
-                <button className="btn btn-secondary mt-2 ms-2" onClick={() => setEditarParcela(null)}>Cancelar</button>
-              </div>
-            </div>
+          <div className="card p-3 mt-3 bg-light">
+            <h5>Editar Parcela #{editarParcela.id}</h5>
+            <select className="form-select mb-2" value={novoStatusParcela} onChange={(e)=>setNovoStatusParcela(e.target.value)}>
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+            <button className="btn btn-success" onClick={salvarParcela}>Salvar</button>
           </div>
         )}
 
