@@ -315,26 +315,26 @@ export default function Pagamentos() {
           </div>
         )}
 
-        {/* MODAL PARCELAS */}
+      {/* MODAL PARCELAS */}
         {parcelasSelecionadas.length > 0 && (
           <div className="modal d-block">
             <div className="modal-dialog">
               <div className="modal-content p-3">
-
+        
                 <h5>Parcelas</h5>
-
+        
                 {parcelasSelecionadas.map(p => (
                   <div key={p.id} className="d-flex justify-content-between align-items-center border-bottom py-2">
-                
+        
                     <div>
                       <strong>Parcela {p.numero_parcela}</strong> -{" "}
-                      {p.produto || "Produto"} -{" "}
+                      {p.produto} -{" "}
                       R$ {Number(p.valor).toFixed(2)} -{" "}
                       <span className={corStatus(p.status)}>
                         {p.status}
                       </span>
                     </div>
-                
+        
                     <button
                       className="btn btn-sm btn-warning"
                       onClick={() => {
@@ -343,11 +343,56 @@ export default function Pagamentos() {
                       }}>
                       Editar
                     </button>
-                
+        
                   </div>
-              ))}
+                ))}
+        
+                <button
+                  className="btn btn-secondary mt-3"
+                  onClick={() => setParcelasSelecionadas([])}>
+                  Fechar
+                </button>
+        
+              </div>
+            </div>
+          </div>
+        )}
 
-
+                {/* MODAL EDITAR PARCELA */}
+        {editarParcela && (
+          <div className="modal d-block">
+            <div className="modal-dialog">
+              <div className="modal-content p-3">
+        
+                <h5>Editar Parcela</h5>
+        
+                <p>
+                  Parcela {editarParcela.numero_parcela} - {editarParcela.produto}
+                </p>
+        
+                <select
+                  className="form-select"
+                  value={novoStatusParcela}
+                  onChange={e => setNovoStatusParcela(e.target.value)}
+                >
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                </select>
+        
+                <button
+                  className="btn btn-success mt-2"
+                  onClick={salvarParcela}
+                >
+                  Salvar
+                </button>
+        
+                <button
+                  className="btn btn-secondary mt-2"
+                  onClick={() => setEditarParcela(null)}
+                >
+                  Cancelar
+                </button>
+        
               </div>
             </div>
           </div>
