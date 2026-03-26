@@ -324,17 +324,29 @@ export default function Pagamentos() {
                 <h5>Parcelas</h5>
 
                 {parcelasSelecionadas.map(p => (
-                  <div key={p.id}>
-                    {p.numero_parcela} - {p.valor}
+                  <div key={p.id} className="d-flex justify-content-between align-items-center border-bottom py-2">
+                
+                    <div>
+                      <strong>Parcela {p.numero_parcela}</strong> -{" "}
+                      {p.produto || "Produto"} -{" "}
+                      R$ {Number(p.valor).toFixed(2)} -{" "}
+                      <span className={corStatus(p.status)}>
+                        {p.status}
+                      </span>
+                    </div>
+                
                     <button
+                      className="btn btn-sm btn-warning"
                       onClick={() => {
                         setEditarParcela(p);
                         setNovoStatusParcela(p.status);
                       }}>
                       Editar
                     </button>
+                
                   </div>
-                ))}
+              ))}
+
 
               </div>
             </div>
