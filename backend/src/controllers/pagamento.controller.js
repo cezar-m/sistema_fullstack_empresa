@@ -193,26 +193,35 @@ export const atualizarParcelas = async (req, res) => {
 /* =========================
    RELATÓRIO TOTAL POR PRODUTO
 ========================= */
+/* =========================
+   RELATÓRIO TOTAL POR PRODUTO (Pagamentos pagos)
+========================= */
 export const listarVendas = async (req, res) => {
   try {
     const id_usuario = req.user.id;
 
     const result = await db.query(
       `SELECT 
-        pr.nome AS produto,
-        SUM(iv.quantidade - COALESCE(iv.quantidade_paga,0)) AS quantidade
+         p.id AS id_produto,
+         p.nome AS produto,
+         SUM(iv.quantidade) AS quantidade_vendida,
+         SUM(iv.quantidade * iv.preco_unitario) AS total_vendido
        FROM vendas v
        JOIN itens_venda iv ON iv.id_venda = v.id
-       JOIN produtos pr ON pr.id = iv.id_produto
-       WHERE v.id_usuario=$1
-       GROUP BY pr.nome`,
+       JOIN produtos p ON p.id = iv.id_produto
+       JOIN pagamentos pg ON pg.id_venda = v.id
+       WHERE v.id_usuario = $1
+         AND pg.status = 'pago'      -- só conta pagamentos pagos
+       GROUP BY p.id, p.nome
+       ORDER BY total_vendido DESC`,
       [id_usuario]
     );
 
     res.json(result.rows);
 
   } catch (err) {
-    console.error(err);
+    console.error("ERRO RELATÓRIO VENDAS:", err);
     res.status(400).json({ erro: err.message });
   }
 };
+
