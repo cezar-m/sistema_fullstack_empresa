@@ -1,8 +1,6 @@
 import db from "../config/db.js";
 
-/* =========================
-   CRIAR PAGAMENTO
-========================= */
+// ================= CRIAR PAGAMENTO =================
 export const criarPagamento = async (req, res) => {
   const client = await db.connect();
 
@@ -11,64 +9,47 @@ export const criarPagamento = async (req, res) => {
 
     const { ids_vendas, id_forma_pagamento, parcelas } = req.body;
 
-    if (!ids_vendas?.length) {
+    if (!ids_vendas || ids_vendas.length === 0) {
       throw new Error("Nenhuma venda enviada");
     }
 
-    const pagamentosCriados = [];
+    let total = 0;
+    const pagamentos = [];
 
-    for (const id_venda of ids_vendas) {
-      // 🔥 TOTAL VENDIDO
-      const { rows: itens } = await client.query(
-        `SELECT 
-           id_produto,
-           quantidade,
-           preco_unitario,
-           COALESCE(quantidade_paga,0) as quantidade_paga
-         FROM itens_venda
-         WHERE id_venda = $1`,
+    for (let id_venda of ids_vendas) {
+
+      // 🔥 NÃO DEIXA PAGAR DUAS VEZES
+      const venda = await client.query(
+        `SELECT total, pago FROM vendas WHERE id=$1 FOR UPDATE`,
         [id_venda]
       );
 
-      if (!itens.length) continue;
+      if (!venda.rows.length) throw new Error("Venda não existe");
 
-      let valor_total = 0;
-
-      for (const item of itens) {
-        const restante = item.quantidade - item.quantidade_paga;
-
-        if (restante <= 0) continue; // já pago
-
-        valor_total += restante * item.preco_unitario;
-
-        // 🔥 MARCA COMO PAGO
-        await client.query(
-          `UPDATE itens_venda
-           SET quantidade_paga = quantidade
-           WHERE id_venda = $1 AND id_produto = $2`,
-          [id_venda, item.id_produto]
-        );
+      if (venda.rows[0].pago) {
+        throw new Error(`Venda ${id_venda} já paga`);
       }
 
-      if (valor_total <= 0) continue;
+      const valorVenda = venda.rows[0].total;
+      total += valorVenda;
 
-      // 🔥 CRIA PAGAMENTO
-      const result = await client.query(
-        `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
-         VALUES ($1, $2, 'pago', NOW())
+      const pagamento = await client.query(
+        `INSERT INTO pagamentos (id_venda, valor, status)
+         VALUES ($1,$2,'pendente')
          RETURNING id`,
-        [id_venda, valor_total]
+        [id_venda, valorVenda]
       );
 
-      pagamentosCriados.push(result.rows[0]);
+      const id_pagamento = pagamento.rows[0].id;
+      pagamentos.push(id_pagamento);
 
-      // 🔥 PARCELAS
+      // parcelas
       if (parcelas?.length) {
-        for (const p of parcelas) {
+        for (let p of parcelas) {
           await client.query(
             `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
              VALUES ($1,$2,$3,$4,'pendente')`,
-            [result.rows[0].id, p.numero, p.valor, p.data_vencimento]
+            [id_pagamento, p.numero, p.valor, p.data_vencimento]
           );
         }
       }
@@ -76,7 +57,7 @@ export const criarPagamento = async (req, res) => {
 
     await client.query("COMMIT");
 
-    res.json({ sucesso: true, pagamentosCriados });
+    res.json({ sucesso: true, total, pagamentos });
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -86,9 +67,7 @@ export const criarPagamento = async (req, res) => {
   }
 };
 
-/* =========================
-   MARCAR COMO PAGO
-========================= */
+// ================= MARCAR COMO PAGO =================
 export const marcarComoPago = async (req, res) => {
   const client = await db.connect();
 
@@ -96,57 +75,34 @@ export const marcarComoPago = async (req, res) => {
     await client.query("BEGIN");
 
     const { id } = req.params;
-    const { status } = req.body;
 
-    if (!status) throw new Error("Status não informado");
-
-    await client.query(
-      `UPDATE pagamentos SET status=$1 WHERE id=$2`,
-      [status, id]
+    const pag = await client.query(
+      `SELECT id_venda FROM pagamentos WHERE id=$1`,
+      [id]
     );
 
-    if (status === "pago") {
+    if (!pag.rows.length) throw new Error("Pagamento não encontrado");
 
-      const { rows: pagamento } = await client.query(
-        `SELECT id_venda FROM pagamentos WHERE id=$1`,
-        [id]
-      );
+    const id_venda = pag.rows[0].id_venda;
 
-      if (!pagamento.length) throw new Error("Pagamento não encontrado");
+    // marca pagamento
+    await client.query(
+      `UPDATE pagamentos SET status='pago' WHERE id=$1`,
+      [id]
+    );
 
-      const id_venda = pagamento[0].id_venda;
-
-      const { rows: itens } = await client.query(
-        `SELECT 
-           id_produto,
-           quantidade,
-           COALESCE(quantidade_paga,0) as quantidade_paga
-         FROM itens_venda
-         WHERE id_venda=$1`,
-        [id_venda]
-      );
-
-      for (let item of itens) {
-
-        const pendente = item.quantidade - item.quantidade_paga;
-
-        if (pendente <= 0) continue;
-
-        await client.query(
-          `UPDATE itens_venda
-           SET quantidade_paga = quantidade_paga + $1
-           WHERE id_venda=$2 AND id_produto=$3`,
-          [pendente, id_venda, item.id_produto]
-        );
-      }
-    }
+    // 🔥 MARCA VENDA COMO PAGA
+    await client.query(
+      `UPDATE vendas SET pago=true WHERE id=$1`,
+      [id_venda]
+    );
 
     await client.query("COMMIT");
+
     res.json({ sucesso: true });
 
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("ERRO PAGAR:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     client.release();
