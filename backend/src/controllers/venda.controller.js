@@ -1,6 +1,6 @@
 import db from "../config/db.js";
 
-// CRIAR VENDA
+// ================= CRIAR VENDA =================
 export const criarVenda = async (req, res) => {
   const client = await db.connect();
 
@@ -16,7 +16,7 @@ export const criarVenda = async (req, res) => {
 
     let total = 0;
 
-    // Criar venda inicial
+    // Cria venda inicial
     const vendaRes = await client.query(
       `INSERT INTO vendas (id_usuario, total, data_venda)
        VALUES ($1, 0, NOW()) RETURNING id`,
@@ -44,22 +44,21 @@ export const criarVenda = async (req, res) => {
         throw new Error("Produto não encontrado");
 
       const produtoDB = prodRes.rows[0];
-      if (produtoDB.quantidade < quantidade)
-        throw new Error(`Estoque insuficiente para ${produtoDB.nome}`);
 
       total += produtoDB.preco * quantidade;
 
-      // Insere item
+      // Insere item da venda
       await client.query(
         `INSERT INTO itens_venda (id_venda, id_produto, quantidade, preco_unitario)
          VALUES ($1, $2, $3, $4)`,
         [id_venda, id_produto, quantidade, produtoDB.preco]
       );
 
-      // Atualiza estoque
+      // Atualiza estoque (permitindo 0 ou negativo)
+      const novaQtd = Math.max(produtoDB.quantidade - quantidade, 0);
       await client.query(
-        `UPDATE estoque SET quantidade = quantidade - $1 WHERE id_produto = $2`,
-        [quantidade, id_produto]
+        `UPDATE estoque SET quantidade = $1 WHERE id_produto = $2`,
+        [novaQtd, id_produto]
       );
     }
 
@@ -78,7 +77,7 @@ export const criarVenda = async (req, res) => {
   }
 };
 
-// LISTAR VENDAS
+// ================= LISTAR VENDAS =================
 export const listarVendas = async (req, res) => {
   try {
     const result = await db.query(
