@@ -102,29 +102,33 @@ export default function Pagamentos() {
   }, [valor, qtdParcelas]);
 
   // ================= CRIAR PAGAMENTO =================
-  const criarPagamento = async () => {
-    if (!produtoId || !formaPagamento) { setMensagem("Preencha tudo"); return; }
-    try {
-      setLoading(true);
-
-      const venda = await api.post("/vendas", {
-        itens: [{ id_produto: Number(produtoId), quantidade }]
+   const totalPorProduto = () => {
+    const totalVendido = {};
+    const totalPago = {};
+  
+    // soma todas as vendas
+    vendas.forEach(v => {
+      v.itens?.forEach(item => {
+        totalVendido[item.produto] = (totalVendido[item.produto] || 0) + Number(item.quantidade);
       });
-
-      await api.post("/pagamentos", {
-        id_venda: venda.data.id,
-        id_forma_pagamento: Number(formaPagamento),
-        parcelas
-      });
-
-      setMensagem("Pagamento criado com sucesso!");
-      setProdutoId(""); setQuantidade(1); setFormaPagamento(""); setQtdParcelas(1); setParcelas([]);
-      carregar();
-
-    } catch (err) {
-      console.error(err);
-      setMensagem(err.response?.data?.erro || "Erro");
-    } finally { setLoading(false); }
+    });
+  
+    // soma todos os pagamentos pagos
+    pagamentos.forEach(p => {
+      if (p.status === "pago") {
+        p.itens?.forEach(i => {
+          totalPago[i.produto] = (totalPago[i.produto] || 0) + Number(i.quantidade_paga);
+        });
+      }
+    });
+  
+    // calcula o que ainda pode ser pago
+    const resultado = {};
+    Object.keys(totalVendido).forEach(produto => {
+      resultado[produto] = (totalVendido[produto] || 0) - (totalPago[produto] || 0);
+    });
+  
+    return resultado;
   };
 
   // ================= VER PARCELAS =================
