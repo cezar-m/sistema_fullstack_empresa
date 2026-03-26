@@ -312,16 +312,6 @@ export default function Pagamentos() {
           </tbody>
         </table>
 
-        <div className="card p-3 mt-4">
-  <h5>Estoque Atual (Simulado)</h5>
-
-  {Object.entries(totalPorProduto()).map(([produto, qtd]) => (
-    <div key={produto}>
-      {produto}: {qtd}
-    </div>
-  ))}
-</div>
-
         {/* ================= PARCELAS ================= */}
         {parcelasSelecionadas.length > 0 && (
           <div className="card p-3 mt-3">
