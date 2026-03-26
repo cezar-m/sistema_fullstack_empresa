@@ -101,35 +101,55 @@ export default function Pagamentos() {
     setParcelas(lista);
   }, [valor, qtdParcelas]);
 
-  // ================= CRIAR PAGAMENTO =================
-   const totalPorProduto = () => {
-    const totalVendido = {};
-    const totalPago = {};
-  
-    // soma todas as vendas
-    vendas.forEach(v => {
-      v.itens?.forEach(item => {
-        totalVendido[item.produto] = (totalVendido[item.produto] || 0) + Number(item.quantidade);
-      });
-    });
-  
-    // soma todos os pagamentos pagos
-    pagamentos.forEach(p => {
-      if (p.status === "pago") {
-        p.itens?.forEach(i => {
-          totalPago[i.produto] = (totalPago[i.produto] || 0) + Number(i.quantidade_paga);
-        });
-      }
-    });
-  
-    // calcula o que ainda pode ser pago
-    const resultado = {};
-    Object.keys(totalVendido).forEach(produto => {
-      resultado[produto] = (totalVendido[produto] || 0) - (totalPago[produto] || 0);
-    });
-  
-    return resultado;
-  };
+// ================= CRIAR PAGAMENTO =================
+const criarPagamento = async () => {
+  if (!produtoId || !quantidade || !formaPagamento) {
+    setMensagem("Preencha todos os campos antes de salvar");
+    return;
+  }
+
+  setLoading(true);
+  setMensagem("");
+
+  try {
+    // Monta as parcelas
+    const listaParcelas = parcelas.map(p => ({
+      numero_parcela: p.numero,
+      valor: p.valor,
+      data_vencimento: p.data_vencimento,
+      status: "pendente",
+    }));
+
+    // Monta o pagamento
+    const pagamento = {
+      id_produto: produtoId,
+      quantidade,
+      id_forma_pagamento: formaPagamento,
+      valor_total: valor,
+      parcelas: listaParcelas,
+    };
+
+    // Chama a API para criar o pagamento
+    await api.post("/pagamentos", pagamento);
+
+    // Atualiza a lista
+    carregar();
+
+    // Reseta campos
+    setProdutoId("");
+    setQuantidade(1);
+    setFormaPagamento("");
+    setQtdParcelas(1);
+    setParcelas([]);
+    setMensagem("Pagamento criado com sucesso!");
+  } catch (err) {
+    console.error(err);
+    setMensagem("Erro ao criar pagamento");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // ================= VER PARCELAS =================
   const verParcelas = async (p) => {
