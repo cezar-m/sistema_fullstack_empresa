@@ -1,9 +1,9 @@
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR VENDA E ITENS
+   CRIAR PAGAMENTOS PARA CADA ITEM
 ========================= */
-export const criarVenda = async (req, res) => {
+export const criarPagamento = async (req, res) => {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
