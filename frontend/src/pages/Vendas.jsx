@@ -155,7 +155,7 @@ export default function PaginaVendas() {
                       {vendasPagina.map(v => <tr key={v.id}>
                         <td>{new Date(v.data_venda).toLocaleDateString("pt-BR")}</td>
                         <td>{v.itens.map((i, idx) => <div key={idx}>{i.produto} - {i.quantidade}x</div>)}</td>
-                        <td className="fw-bold text-success">R$ {calcularTotal(v).toFixed(2)}</td>
+                        <td className="fw-bold text-success">R$ {Number(v.total).toFixed(2)}</td>
                       </tr>)}
                     </tbody>
                   </table>
