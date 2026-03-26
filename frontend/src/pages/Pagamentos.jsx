@@ -30,13 +30,13 @@ export default function Pagamentos() {
     const totalPago = {};
 
     vendas.forEach(v => {
-      totalVendido[v.produto] = (totalVendido[v.produto] || 0) - Number(v.quantidade);
+      totalVendido[v.produto] = (totalVendido[v.produto] || 0) + Number(v.quantidade);
     });
 
     pagamentos.forEach(p => {
       if (p.status === "pago") {
         p.itens?.forEach(i => {
-          totalPago[i.produto] = (totalPago[i.produto] || 0) - Number(i.quantidade_paga);
+          totalPago[i.produto] = (totalPago[i.produto] || 0) + Number(i.quantidade_paga);
         });
       }
     });
