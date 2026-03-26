@@ -1,6 +1,51 @@
 import db from "../config/db.js";
 
 /* =========================
+   CRIAR VENDA
+========================= */
+export const criarVenda = async (req, res) => {
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+
+    const id_usuario = req.user?.id;
+    const { itens } = req.body;
+
+    if (!id_usuario || !itens || !itens.length) {
+      throw new Error("Dados da venda incompletos");
+    }
+
+    const venda = await client.query(
+      `INSERT INTO vendas (id_usuario, data_venda)
+       VALUES ($1, NOW())
+       RETURNING id`,
+      [id_usuario]
+    );
+
+    const id_venda = venda.rows[0].id;
+
+    for (const i of itens) {
+      await client.query(
+        `INSERT INTO itens_venda (id_venda, id_produto, quantidade)
+         VALUES ($1, $2, $3)`,
+        [id_venda, i.id_produto, i.quantidade]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ sucesso: true, id: id_venda });
+
+  } catch (err) {
+    if (client) await client.query("ROLLBACK");
+    console.error(err);
+    res.status(400).json({ erro: err.message });
+  } finally {
+    if (client) client.release();
+  }
+};
+
+/* =========================
    CRIAR PAGAMENTO
 ========================= */
 export const criarPagamento = async (req, res) => {
@@ -17,16 +62,18 @@ export const criarPagamento = async (req, res) => {
     }
 
     const venda = await client.query(
-      `SELECT total FROM vendas WHERE id = $1`,
+      `SELECT v.id, SUM(iv.quantidade * pr.preco) AS total
+       FROM vendas v
+       JOIN itens_venda iv ON iv.id_venda = v.id
+       JOIN produtos pr ON pr.id = iv.id_produto
+       WHERE v.id = $1
+       GROUP BY v.id`,
       [id_venda]
     );
 
-    if (venda.rows.length === 0) {
-      throw new Error("Venda não encontrada");
-    }
+    if (venda.rows.length === 0) throw new Error("Venda não encontrada");
 
     const valor = venda.rows[0].total;
-
     const status = parcelas.length > 0 ? "pendente" : "pago";
 
     const pagamento = await client.query(
@@ -39,7 +86,6 @@ export const criarPagamento = async (req, res) => {
 
     const id_pagamento = pagamento.rows[0].id;
 
-    // criar parcelas
     for (const p of parcelas) {
       await client.query(
         `INSERT INTO parcelas
@@ -50,39 +96,19 @@ export const criarPagamento = async (req, res) => {
     }
 
     await client.query("COMMIT");
-
     res.json({ sucesso: true });
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
+    console.error(err);
     res.status(400).json({ erro: err.message });
   } finally {
     if (client) client.release();
   }
-}
-/* =========================
-   ATUALIZAR STATUS PAGAMENTO
-========================= */
-export const marcarComoPago = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    await db.query(
-      `UPDATE pagamentos SET status = $1 WHERE id = $2`,
-      [status, id]
-    );
-
-    res.json({ sucesso: true });
-
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ erro: err.message });
-  }
 };
 
 /* =========================
-   LISTAR PAGAMENTOS
+   LISTAR PAGAMENTOS POR USUÁRIO
 ========================= */
 export const listarPagamentosPorId = async (req, res) => {
   try {
@@ -116,6 +142,7 @@ export const listarPagamentosPorId = async (req, res) => {
     res.json(result.rows);
 
   } catch (err) {
+    console.error(err);
     res.status(400).json({ erro: err.message });
   }
 };
@@ -126,7 +153,6 @@ export const listarPagamentosPorId = async (req, res) => {
 export const listarParcelasPorPagamento = async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await db.query(
       `SELECT id, numero_parcela, valor, data_vencimento, status
        FROM parcelas
@@ -138,6 +164,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
     res.json(result.rows);
 
   } catch (err) {
+    console.error(err);
     res.status(400).json({ erro: err.message });
   }
 };
@@ -147,7 +174,6 @@ export const listarParcelasPorPagamento = async (req, res) => {
 ========================= */
 export const atualizarParcela = async (req, res) => {
   let client;
-
   try {
     client = await db.connect();
     await client.query("BEGIN");
@@ -156,34 +182,31 @@ export const atualizarParcela = async (req, res) => {
     const { status } = req.body;
 
     const parcela = await client.query(
-      `UPDATE parcelas 
-       SET status = $1 
-       WHERE id = $2 
+      `UPDATE parcelas
+       SET status = $1
+       WHERE id = $2
        RETURNING id_pagamento`,
       [status, id]
     );
 
-    if (parcela.rows.length === 0) {
-      throw new Error("Parcela não encontrada");
-    }
+    if (parcela.rows.length === 0) throw new Error("Parcela não encontrada");
 
     const id_pagamento = parcela.rows[0].id_pagamento;
 
     const pendentes = await client.query(
-      `SELECT 1 FROM parcelas 
+      `SELECT 1 FROM parcelas
        WHERE id_pagamento = $1 AND status != 'pago'`,
       [id_pagamento]
     );
 
     await client.query(
-      `UPDATE pagamentos 
-       SET status = $1 
+      `UPDATE pagamentos
+       SET status = $1
        WHERE id = $2`,
       [pendentes.rows.length === 0 ? "pago" : "pendente", id_pagamento]
     );
 
     await client.query("COMMIT");
-
     res.json({ sucesso: true });
 
   } catch (err) {
@@ -195,3 +218,50 @@ export const atualizarParcela = async (req, res) => {
   }
 };
 
+/* =========================
+   MARCAR PAGAMENTO COMO PAGO
+========================= */
+export const marcarComoPago = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    await db.query(
+      `UPDATE pagamentos SET status = $1 WHERE id = $2`,
+      [status, id]
+    );
+
+    res.json({ sucesso: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ erro: err.message });
+  }
+};
+
+/* =========================
+   LISTAR VENDAS POR PRODUTO (RELATÓRIO)
+========================= */
+export const listarVendas = async (req, res) => {
+  try {
+    const id_usuario = req.user.id;
+
+    const result = await db.query(
+      `SELECT 
+        pr.nome AS produto,
+        SUM(iv.quantidade) AS quantidade
+       FROM vendas v
+       JOIN itens_venda iv ON iv.id_venda = v.id
+       JOIN produtos pr ON pr.id = iv.id_produto
+       WHERE v.id_usuario = $1
+       GROUP BY pr.nome`,
+      [id_usuario]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ erro: err.message });
+  }
+};
