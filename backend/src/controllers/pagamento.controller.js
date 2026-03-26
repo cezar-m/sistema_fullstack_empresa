@@ -1,111 +1,41 @@
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR VENDA
+   CRIAR PAGAMENTO
 ========================= */
 export const criarVenda = async (req, res) => {
-  let client;
+  const client = await db.connect();
   try {
-    client = await db.connect();
     await client.query("BEGIN");
 
     const id_usuario = req.user?.id;
+    if (!id_usuario) throw new Error("Usuário não autenticado");
+
     const { itens } = req.body;
 
-    if (!id_usuario || !itens || !itens.length) {
-      throw new Error("Dados da venda incompletos");
-    }
-
-    const venda = await client.query(
-      `INSERT INTO vendas (id_usuario, data_venda)
-       VALUES ($1, NOW())
-       RETURNING id`,
+    const result = await client.query(
+      `INSERT INTO vendas (id_usuario) VALUES ($1) RETURNING id`,
       [id_usuario]
     );
+    const id_venda = result.rows[0].id;
 
-    const id_venda = venda.rows[0].id;
-
-    for (const i of itens) {
+    for (let item of itens) {
       await client.query(
-        `INSERT INTO itens_venda (id_venda, id_produto, quantidade)
-         VALUES ($1, $2, $3)`,
-        [id_venda, i.id_produto, i.quantidade]
+        `INSERT INTO itens_venda (id_venda, id_produto, quantidade) VALUES ($1, $2, $3)`,
+        [id_venda, item.id_produto, item.quantidade]
       );
     }
 
     await client.query("COMMIT");
-    res.json({ sucesso: true, id: id_venda });
-
+    res.json({ id: id_venda });
   } catch (err) {
-    if (client) await client.query("ROLLBACK");
-    console.error(err);
+    await client.query("ROLLBACK");
     res.status(400).json({ erro: err.message });
   } finally {
-    if (client) client.release();
+    client.release();
   }
 };
 
-/* =========================
-   CRIAR PAGAMENTO
-========================= */
-export const criarPagamento = async (req, res) => {
-  let client;
-
-  try {
-    client = await db.connect();
-    await client.query("BEGIN");
-
-    const { id_venda, id_forma_pagamento, parcelas = [] } = req.body;
-
-    if (!id_venda || !id_forma_pagamento) {
-      throw new Error("Dados incompletos");
-    }
-
-    const venda = await client.query(
-      `SELECT v.id, SUM(iv.quantidade * pr.preco) AS total
-       FROM vendas v
-       JOIN itens_venda iv ON iv.id_venda = v.id
-       JOIN produtos pr ON pr.id = iv.id_produto
-       WHERE v.id = $1
-       GROUP BY v.id`,
-      [id_venda]
-    );
-
-    if (venda.rows.length === 0) throw new Error("Venda não encontrada");
-
-    const valor = venda.rows[0].total;
-    const status = parcelas.length > 0 ? "pendente" : "pago";
-
-    const pagamento = await client.query(
-      `INSERT INTO pagamentos
-       (id_venda, id_forma_pagamento, valor, status, data_pagamento)
-       VALUES ($1,$2,$3,$4,NOW())
-       RETURNING id`,
-      [id_venda, id_forma_pagamento, valor, status]
-    );
-
-    const id_pagamento = pagamento.rows[0].id;
-
-    for (const p of parcelas) {
-      await client.query(
-        `INSERT INTO parcelas
-         (id_pagamento, numero_parcela, valor, data_vencimento, status)
-         VALUES ($1,$2,$3,$4,'pendente')`,
-        [id_pagamento, p.numero, p.valor, p.data_vencimento]
-      );
-    }
-
-    await client.query("COMMIT");
-    res.json({ sucesso: true });
-
-  } catch (err) {
-    if (client) await client.query("ROLLBACK");
-    console.error(err);
-    res.status(400).json({ erro: err.message });
-  } finally {
-    if (client) client.release();
-  }
-};
 
 /* =========================
    LISTAR PAGAMENTOS POR USUÁRIO
@@ -172,51 +102,42 @@ export const listarParcelasPorPagamento = async (req, res) => {
 /* =========================
    ATUALIZAR PARCELA
 ========================= */
-export const atualizarParcela = async (req, res) => {
-  let client;
+export const atualizarParcelas = async (req, res) => {
+  const client = await db.connect();
   try {
-    client = await db.connect();
     await client.query("BEGIN");
 
     const { id } = req.params;
-    const { status } = req.body;
 
-    const parcela = await client.query(
-      `UPDATE parcelas
-       SET status = $1
-       WHERE id = $2
-       RETURNING id_pagamento`,
-      [status, id]
-    );
+    // Atualiza o status do pagamento
+    await client.query(`UPDATE pagamentos SET status='pago' WHERE id=$1`, [id]);
 
-    if (parcela.rows.length === 0) throw new Error("Parcela não encontrada");
+    // Pega itens da venda
+    const { rows: itens } = await client.query(`
+      SELECT id_produto, quantidade
+      FROM itens_venda
+      WHERE id_venda = (SELECT id_venda FROM pagamentos WHERE id=$1)
+    `, [id]);
 
-    const id_pagamento = parcela.rows[0].id_pagamento;
-
-    const pendentes = await client.query(
-      `SELECT 1 FROM parcelas
-       WHERE id_pagamento = $1 AND status != 'pago'`,
-      [id_pagamento]
-    );
-
-    await client.query(
-      `UPDATE pagamentos
-       SET status = $1
-       WHERE id = $2`,
-      [pendentes.rows.length === 0 ? "pago" : "pendente", id_pagamento]
-    );
+    // Atualiza estoque
+    for (let i of itens) {
+      await client.query(`
+        UPDATE produtos
+        SET quantidade = quantidade - $1
+        WHERE id = $2
+      `, [i.quantidade, i.id_produto]);
+    }
 
     await client.query("COMMIT");
     res.json({ sucesso: true });
-
   } catch (err) {
-    if (client) await client.query("ROLLBACK");
-    console.error(err);
+    await client.query("ROLLBACK");
     res.status(400).json({ erro: err.message });
   } finally {
-    if (client) client.release();
+    client.release();
   }
 };
+
 
 /* =========================
    MARCAR PAGAMENTO COMO PAGO
