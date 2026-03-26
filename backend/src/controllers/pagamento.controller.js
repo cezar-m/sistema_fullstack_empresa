@@ -191,9 +191,6 @@ export const atualizarParcelas = async (req, res) => {
 };
 
 /* =========================
-   RELATÓRIO TOTAL POR PRODUTO
-========================= */
-/* =========================
    RELATÓRIO TOTAL POR PRODUTO (Pagamentos pagos)
 ========================= */
 export const listarVendas = async (req, res) => {
