@@ -154,7 +154,18 @@ export const listarPagamentosPorId = async (req, res) => {
 export const listarParcelasPorPagamento = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT * FROM parcelas WHERE id_pagamento=$1`,
+      `SELECT 
+        pa.id,
+        pa.numero_parcela,
+        pa.valor,
+        pa.status,
+        pr.nome AS produto
+      FROM parcelas pa
+      JOIN pagamentos p ON p.id = pa.id_pagamento
+      JOIN vendas v ON v.id = p.id_venda
+      JOIN itens_venda iv ON iv.id_venda = v.id
+      JOIN produtos pr ON pr.id = iv.id_produto
+      WHERE pa.id_pagamento = $1`,
       [req.params.id]
     );
 
