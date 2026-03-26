@@ -25,6 +25,7 @@ export const criarPagamento = async (req, res) => {
 
     if (!itens.length) throw new Error("Itens da venda não encontrados");
 
+    // Calcula valor total
     const valor_total = itens.reduce((acc, i) => acc + i.quantidade * i.preco, 0);
 
     // Cria pagamento
@@ -35,7 +36,7 @@ export const criarPagamento = async (req, res) => {
     );
     const id_pagamento = resultPagamento.rows[0].id;
 
-    // Cria parcelas, se existirem
+    // Cria parcelas se existirem
     if (parcelas && parcelas.length > 0) {
       for (let parcela of parcelas) {
         await client.query(
@@ -48,7 +49,6 @@ export const criarPagamento = async (req, res) => {
 
     await client.query("COMMIT");
     res.json({ sucesso: true, id: id_pagamento, valor_total });
-
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("ERRO CRIAR PAGAMENTO:", err);
@@ -103,7 +103,6 @@ export const marcarComoPago = async (req, res) => {
 
     await client.query("COMMIT");
     res.json({ sucesso: true });
-
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("ERRO MARCAR PAGAMENTO COMO PAGO:", err);
@@ -114,11 +113,12 @@ export const marcarComoPago = async (req, res) => {
 };
 
 /* =========================
-   LISTAR PAGAMENTOS DO USUÁRIO
+   LISTAR PAGAMENTOS POR USUÁRIO
 ========================= */
 export const listarPagamentosPorId = async (req, res) => {
   try {
-    const id_usuario = req.user.id;
+    const id_usuario = req.user?.id;
+    if (!id_usuario) throw new Error("Usuário não autenticado");
 
     const result = await db.query(
       `SELECT 
@@ -147,7 +147,6 @@ export const listarPagamentosPorId = async (req, res) => {
     );
 
     res.json(result.rows);
-
   } catch (err) {
     console.error("ERRO LISTAR PAGAMENTOS:", err);
     res.status(400).json({ erro: err.message });
@@ -160,7 +159,6 @@ export const listarPagamentosPorId = async (req, res) => {
 export const listarParcelasPorPagamento = async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await db.query(
       `SELECT id, numero_parcela, valor, data_vencimento, status
        FROM parcelas
@@ -168,9 +166,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
        ORDER BY numero_parcela`,
       [id]
     );
-
     res.json(result.rows);
-
   } catch (err) {
     console.error("ERRO LISTAR PARCELAS:", err);
     res.status(400).json({ erro: err.message });
@@ -188,41 +184,8 @@ export const atualizarParcelas = async (req, res) => {
 
     await db.query(`UPDATE parcelas SET status=$1 WHERE id=$2`, [status, id]);
     res.json({ sucesso: true });
-
   } catch (err) {
     console.error("ERRO ATUALIZAR PARCELA:", err);
-    res.status(400).json({ erro: err.message });
-  }
-};
-
-/* =========================
-   RELATÓRIO TOTAL POR PRODUTO (Pagamentos pagos)
-========================= */
-export const listarTotal = async (req, res) => {
-  try {
-    const id_usuario = req.user.id;
-
-    const result = await db.query(
-      `SELECT 
-         p.id AS id_produto,
-         p.nome AS produto,
-         SUM(iv.quantidade) AS quantidade_vendida,
-         SUM(iv.quantidade * iv.preco_unitario) AS total_vendido
-       FROM vendas v
-       JOIN itens_venda iv ON iv.id_venda = v.id
-       JOIN produtos p ON p.id = iv.id_produto
-       JOIN pagamentos pg ON pg.id_venda = v.id
-       WHERE v.id_usuario = $1
-         AND pg.status = 'pago'
-       GROUP BY p.id, p.nome
-       ORDER BY total_vendido DESC`,
-      [id_usuario]
-    );
-
-    res.json(result.rows);
-
-  } catch (err) {
-    console.error("ERRO RELATÓRIO TOTAL POR PRODUTO:", err);
     res.status(400).json({ erro: err.message });
   }
 };
