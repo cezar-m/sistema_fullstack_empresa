@@ -1,18 +1,16 @@
 import db from "../config/db.js";
 
 /* =========================
-   CRIAR PAGAMENTO
+   CRIAR VENDA E ITENS
 ========================= */
 export const criarVenda = async (req, res) => {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-
     const id_usuario = req.user?.id;
     if (!id_usuario) throw new Error("Usuário não autenticado");
 
     const { itens } = req.body;
-
     const result = await client.query(
       `INSERT INTO vendas (id_usuario) VALUES ($1) RETURNING id`,
       [id_usuario]
@@ -36,9 +34,8 @@ export const criarVenda = async (req, res) => {
   }
 };
 
-
 /* =========================
-   LISTAR PAGAMENTOS POR USUÁRIO
+   LISTAR PAGAMENTOS DO USUÁRIO
 ========================= */
 export const listarPagamentosPorId = async (req, res) => {
   try {
@@ -70,7 +67,6 @@ export const listarPagamentosPorId = async (req, res) => {
     );
 
     res.json(result.rows);
-
   } catch (err) {
     console.error(err);
     res.status(400).json({ erro: err.message });
@@ -90,9 +86,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
        ORDER BY numero_parcela`,
       [id]
     );
-
     res.json(result.rows);
-
   } catch (err) {
     console.error(err);
     res.status(400).json({ erro: err.message });
@@ -100,32 +94,33 @@ export const listarParcelasPorPagamento = async (req, res) => {
 };
 
 /* =========================
-   ATUALIZAR PARCELA
+   ATUALIZAR STATUS PAGAMENTO PARA PAGO
 ========================= */
 export const atualizarParcelas = async (req, res) => {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-
     const { id } = req.params;
 
-    // Atualiza o status do pagamento
+    // Atualiza status do pagamento
     await client.query(`UPDATE pagamentos SET status='pago' WHERE id=$1`, [id]);
 
     // Pega itens da venda
-    const { rows: itens } = await client.query(`
-      SELECT id_produto, quantidade
-      FROM itens_venda
-      WHERE id_venda = (SELECT id_venda FROM pagamentos WHERE id=$1)
-    `, [id]);
+    const { rows: itens } = await client.query(
+      `SELECT id_produto, quantidade
+       FROM itens_venda
+       WHERE id_venda = (SELECT id_venda FROM pagamentos WHERE id=$1)`,
+      [id]
+    );
 
     // Atualiza estoque
     for (let i of itens) {
-      await client.query(`
-        UPDATE produtos
-        SET quantidade = quantidade - $1
-        WHERE id = $2
-      `, [i.quantidade, i.id_produto]);
+      await client.query(
+        `UPDATE produtos
+         SET quantidade = quantidade - $1
+         WHERE id = $2`,
+        [i.quantidade, i.id_produto]
+      );
     }
 
     await client.query("COMMIT");
@@ -138,22 +133,15 @@ export const atualizarParcelas = async (req, res) => {
   }
 };
 
-
 /* =========================
-   MARCAR PAGAMENTO COMO PAGO
+   MARCAR PAGAMENTO COMO CANCELADO OU PENDENTE
 ========================= */
 export const marcarComoPago = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-
-    await db.query(
-      `UPDATE pagamentos SET status = $1 WHERE id = $2`,
-      [status, id]
-    );
-
+    await db.query(`UPDATE pagamentos SET status=$1 WHERE id=$2`, [status, id]);
     res.json({ sucesso: true });
-
   } catch (err) {
     console.error(err);
     res.status(400).json({ erro: err.message });
@@ -161,7 +149,7 @@ export const marcarComoPago = async (req, res) => {
 };
 
 /* =========================
-   LISTAR VENDAS POR PRODUTO (RELATÓRIO)
+   RELATÓRIO TOTAL POR PRODUTO
 ========================= */
 export const listarVendas = async (req, res) => {
   try {
@@ -180,9 +168,8 @@ export const listarVendas = async (req, res) => {
     );
 
     res.json(result.rows);
-
   } catch (err) {
     console.error(err);
     res.status(400).json({ erro: err.message });
   }
-};
+}
