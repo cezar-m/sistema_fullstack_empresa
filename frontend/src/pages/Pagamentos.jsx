@@ -54,20 +54,20 @@ export default function Pagamentos() {
   // ================= CARREGAR DADOS =================
   const carregar = async () => {
     try {
-      const [res1, res2, res3, res4] = await Promise.all([
+      const [resProdutos, resFormas, resPagamentos, resVendas] = await Promise.all([
         api.get("/products/listar"),
         api.get("/formas-pagamento"),
         api.get("/pagamentos"),
         api.get("/vendas")
       ]);
 
-      setProdutos(res1.data || []);
-      setFormas(res2.data || []);
-      setPagamentos(res3.data || []);
-      setVendas(res4.data || []);
+      setProdutos(resProdutos.data || []);
+      setFormas(resFormas.data || []);
+      setPagamentos(resPagamentos.data || []);
+      setVendas(resVendas.data || []);
     } catch (err) {
-      console.error(err);
-      setMensagem("Erro ao carregar dados");
+      console.error("Erro ao carregar dados:", err);
+      setMensagem("Erro ao carregar dados. Confira a conexão.");
     }
   };
 
@@ -76,8 +76,7 @@ export default function Pagamentos() {
   // ================= CALCULAR VALOR =================
   useEffect(() => {
     const produto = produtos.find(p => Number(p.id) === Number(produtoId));
-    if (produto) setValor(Number(produto.preco) * quantidade);
-    else setValor(0);
+    setValor(produto ? Number(produto.preco) * quantidade : 0);
   }, [produtoId, quantidade, produtos]);
 
   // ================= GERAR PARCELAS =================
@@ -110,42 +109,37 @@ export default function Pagamentos() {
     setMensagem("");
 
     try {
-      // 1️⃣ Criar venda primeiro
-      const vendaBody = {
-        id_produto: produtoId,
-        quantidade
-      };
+      // 1️⃣ Criar venda
+      const vendaBody = { id_produto: produtoId, quantidade };
       const vendaRes = await api.post("/vendas", vendaBody);
-      const id_venda = vendaRes.data.id; // assume que backend retorna { id: ... }
+      const id_venda = vendaRes.data?.id;
+      if (!id_venda) throw new Error("Erro ao criar venda");
 
-      // 2️⃣ Criar pagamento usando id_venda
-      const listaParcelas = parcelas.map(p => ({
-        numero: p.numero,
-        valor: p.valor,
-        data_vencimento: p.data_vencimento
-      }));
-
-      const pagamento = {
+      // 2️⃣ Criar pagamento
+      const pagamentoBody = {
         id_venda,
         id_forma_pagamento: formaPagamento,
-        parcelas: listaParcelas
+        parcelas: parcelas.map(p => ({
+          numero: p.numero,
+          valor: p.valor,
+          data_vencimento: p.data_vencimento
+        }))
       };
 
-      await api.post("/pagamentos", pagamento);
+      await api.post("/pagamentos", pagamentoBody);
 
-      // Atualiza lista
-      carregar();
-
+      setMensagem("Pagamento criado com sucesso!");
       // Reset campos
       setProdutoId("");
       setQuantidade(1);
       setFormaPagamento("");
       setQtdParcelas(1);
       setParcelas([]);
-      setMensagem("Pagamento criado com sucesso!");
+      carregar();
+
     } catch (err) {
-      console.error(err);
-      setMensagem("Erro ao criar pagamento. Confira os dados.");
+      console.error("Erro criar pagamento:", err);
+      setMensagem(err.response?.data?.erro || "Erro ao criar pagamento. Confira os dados.");
     } finally {
       setLoading(false);
     }
@@ -157,25 +151,36 @@ export default function Pagamentos() {
       const res = await api.get(`/pagamentos/${p.id}/parcelas`);
       setParcelasSelecionadas(res.data || []);
       setEditarPagamento(p);
-    } catch { setMensagem("Erro ao buscar parcelas"); }
+    } catch (err) {
+      console.error("Erro ao buscar parcelas:", err);
+      setMensagem("Erro ao buscar parcelas");
+    }
   };
 
   // ================= EDITAR PAGAMENTO =================
   const salvarEdicao = async () => {
+    if (!editarPagamento) return;
     try {
       await api.put(`/pagamentos/pago/${editarPagamento.id}`, { status: novoStatus });
       setEditarPagamento(null);
       carregar();
-    } catch { setMensagem("Erro ao editar pagamento"); }
+    } catch (err) {
+      console.error("Erro ao editar pagamento:", err);
+      setMensagem("Erro ao editar pagamento");
+    }
   };
 
   // ================= EDITAR PARCELA =================
   const salvarParcela = async () => {
+    if (!editarParcela) return;
     try {
       await api.put(`/pagamentos/parcelas/${editarParcela.id}`, { status: novoStatusParcela });
       setEditarParcela(null);
       setParcelasSelecionadas(prev => prev.map(p => p.id === editarParcela.id ? { ...p, status: novoStatusParcela } : p));
-    } catch { setMensagem("Erro ao atualizar parcela"); }
+    } catch (err) {
+      console.error("Erro ao atualizar parcela:", err);
+      setMensagem("Erro ao atualizar parcela");
+    }
   };
 
   // ================= STATUS COR =================
@@ -193,33 +198,29 @@ export default function Pagamentos() {
         <h3>Pagamentos</h3>
         {mensagem && <div className="alert alert-info">{mensagem}</div>}
 
-        {/* FORM */}
+        {/* FORMULARIO */}
         <div className="card p-3 mb-3">
           <div className="row g-2">
             <div className="col-md-3">
-              <select className="form-select" value={produtoId} onChange={(e) => setProdutoId(e.target.value)}>
+              <select className="form-select" value={produtoId} onChange={e => setProdutoId(e.target.value)}>
                 <option value="">Produto</option>
                 {produtos.map(p => <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco}</option>)}
               </select>
             </div>
-
             <div className="col-md-2">
-              <input type="number" className="form-control" min="1" value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))}/>
+              <input type="number" className="form-control" min="1" value={quantidade} onChange={e => setQuantidade(Number(e.target.value))}/>
             </div>
-
             <div className="col-md-2">
               <input className="form-control" value={`R$ ${valor.toFixed(2)}`} readOnly />
             </div>
-
             <div className="col-md-3">
-              <select className="form-select" value={formaPagamento} onChange={(e) => setFormaPagamento(e.target.value)}>
+              <select className="form-select" value={formaPagamento} onChange={e => setFormaPagamento(e.target.value)}>
                 <option value="">Forma</option>
                 {formas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
-
             <div className="col-md-2">
-              <input type="number" className="form-control" min="1" value={qtdParcelas} onChange={(e) => setQtdParcelas(Number(e.target.value))}/>
+              <input type="number" className="form-control" min="1" value={qtdParcelas} onChange={e => setQtdParcelas(Number(e.target.value))}/>
             </div>
           </div>
 
@@ -231,12 +232,7 @@ export default function Pagamentos() {
         {/* TABELA PAGAMENTOS */}
         <table className="table table-striped">
           <thead>
-            <tr>
-              <th>Produto</th>
-              <th>Valor</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
+            <tr><th>Produto</th><th>Valor</th><th>Status</th><th>Ações</th></tr>
           </thead>
           <tbody>
             {pagamentos.map(p => (
@@ -290,11 +286,11 @@ export default function Pagamentos() {
           </div>
         )}
 
-        {/* MODAIS DE EDIÇÃO */}
+        {/* MODAIS */}
         {editarPagamento && (
           <div className="card p-3 mt-3 bg-light">
             <h5>Editar Pagamento #{editarPagamento.id}</h5>
-            <select className="form-select mb-2" value={novoStatus} onChange={(e)=>setNovoStatus(e.target.value)}>
+            <select className="form-select mb-2" value={novoStatus} onChange={e => setNovoStatus(e.target.value)}>
               <option value="pendente">Pendente</option>
               <option value="pago">Pago</option>
               <option value="cancelado">Cancelado</option>
@@ -306,7 +302,7 @@ export default function Pagamentos() {
         {editarParcela && (
           <div className="card p-3 mt-3 bg-light">
             <h5>Editar Parcela #{editarParcela.id}</h5>
-            <select className="form-select mb-2" value={novoStatusParcela} onChange={(e)=>setNovoStatusParcela(e.target.value)}>
+            <select className="form-select mb-2" value={novoStatusParcela} onChange={e => setNovoStatusParcela(e.target.value)}>
               <option value="pendente">Pendente</option>
               <option value="pago">Pago</option>
               <option value="cancelado">Cancelado</option>
