@@ -9,25 +9,21 @@ export const criarPagamento = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const id_usuario = req.user?.id;
-    if (!id_usuario) throw new Error("Usuário não autenticado");
-
     const { ids_vendas, id_forma_pagamento, parcelas } = req.body;
 
-    if (!ids_vendas || ids_vendas.length === 0)
-      throw new Error("Vendas não informadas");
+    if (!ids_vendas?.length) {
+      throw new Error("Nenhuma venda enviada");
+    }
 
-    let valor_total = 0;
     const pagamentosCriados = [];
 
-    for (let id_venda of ids_vendas) {
-
-      // 🔥 PEGAR ITENS + O QUE JÁ FOI PAGO
+    for (const id_venda of ids_vendas) {
+      // 🔥 TOTAL VENDIDO
       const { rows: itens } = await client.query(
         `SELECT 
            id_produto,
            quantidade,
-           preco_unitario AS preco,
+           preco_unitario,
            COALESCE(quantidade_paga,0) as quantidade_paga
          FROM itens_venda
          WHERE id_venda = $1`,
@@ -36,62 +32,59 @@ export const criarPagamento = async (req, res) => {
 
       if (!itens.length) continue;
 
-      let totalVenda = 0;
+      let valor_total = 0;
 
-      for (let item of itens) {
+      for (const item of itens) {
+        const restante = item.quantidade - item.quantidade_paga;
 
-        const pendente = item.quantidade - item.quantidade_paga;
+        if (restante <= 0) continue; // já pago
 
-        // 🔥 BLOQUEIA PAGAMENTO DUPLICADO
-        if (pendente <= 0) continue;
+        valor_total += restante * item.preco_unitario;
 
-        totalVenda += pendente * item.preco;
+        // 🔥 MARCA COMO PAGO
+        await client.query(
+          `UPDATE itens_venda
+           SET quantidade_paga = quantidade
+           WHERE id_venda = $1 AND id_produto = $2`,
+          [id_venda, item.id_produto]
+        );
       }
 
-      // 🔥 SE JÁ FOI PAGO, NÃO CRIA OUTRO PAGAMENTO
-      if (totalVenda <= 0) continue;
+      if (valor_total <= 0) continue;
 
-      valor_total += totalVenda;
-
-      const resultPagamento = await client.query(
+      // 🔥 CRIA PAGAMENTO
+      const result = await client.query(
         `INSERT INTO pagamentos (id_venda, valor, status, data_pagamento)
-         VALUES ($1, $2, $3, NOW()) RETURNING id`,
-        [id_venda, totalVenda, "pendente"]
+         VALUES ($1, $2, 'pago', NOW())
+         RETURNING id`,
+        [id_venda, valor_total]
       );
 
-      const id_pagamento = resultPagamento.rows[0].id;
+      pagamentosCriados.push(result.rows[0]);
 
-      pagamentosCriados.push({ id_pagamento, id_venda, totalVenda });
-
-      // parcelas
-      if (parcelas && parcelas.length > 0) {
-        for (let parcela of parcelas) {
+      // 🔥 PARCELAS
+      if (parcelas?.length) {
+        for (const p of parcelas) {
           await client.query(
             `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [id_pagamento, parcela.numero, parcela.valor, parcela.data_vencimento, "pendente"]
+             VALUES ($1,$2,$3,$4,'pendente')`,
+            [result.rows[0].id, p.numero, p.valor, p.data_vencimento]
           );
         }
       }
     }
 
-    if (pagamentosCriados.length === 0) {
-      throw new Error("Todas as vendas já estão pagas");
-    }
-
     await client.query("COMMIT");
 
-    res.json({ sucesso: true, valor_total, pagamentosCriados });
+    res.json({ sucesso: true, pagamentosCriados });
 
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("ERRO CRIAR PAGAMENTO:", err);
     res.status(400).json({ erro: err.message });
   } finally {
     client.release();
   }
 };
-
 
 /* =========================
    MARCAR COMO PAGO
