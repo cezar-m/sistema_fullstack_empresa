@@ -98,52 +98,73 @@ export default function Pagamentos() {
     setParcelas(lista);
   }, [valor, qtdParcelas]);
 
-  // ================= CRIAR PAGAMENTO (COM VENDA) =================
-  const criarPagamento = async () => {
-    if (!produtoId || !quantidade || !formaPagamento) {
-      setMensagem("Preencha todos os campos antes de salvar");
-      return;
-    }
+ // ================= CRIAR PAGAMENTO (CORRIGIDO) =================
+const criarPagamento = async () => {
+  if (!produtoId || !quantidade || !formaPagamento) {
+    setMensagem("Preencha todos os campos antes de salvar");
+    return;
+  }
 
-    setLoading(true);
-    setMensagem("");
+  setLoading(true);
+  setMensagem("");
 
-    try {
-      // 1️⃣ Criar venda
-      const vendaBody = { id_produto: produtoId, quantidade };
-      const vendaRes = await api.post("/vendas", vendaBody);
-      const id_venda = vendaRes.data?.id;
-      if (!id_venda) throw new Error("Erro ao criar venda");
+  try {
+    // ✅ 1 - CRIAR VENDA NO FORMATO CORRETO
+    const vendaBody = {
+      itens: [
+        {
+          id_produto: Number(produtoId),
+          quantidade: Number(quantidade)
+        }
+      ]
+    };
 
-      // 2️⃣ Criar pagamento
-      const pagamentoBody = {
-        id_venda,
-        id_forma_pagamento: formaPagamento,
-        parcelas: parcelas.map(p => ({
-          numero: p.numero,
-          valor: p.valor,
-          data_vencimento: p.data_vencimento
-        }))
-      };
+    const vendaRes = await api.post("/vendas", vendaBody);
 
-      await api.post("/pagamentos", pagamentoBody);
+    const id_venda = vendaRes.data?.id;
+    if (!id_venda) throw new Error("Erro ao criar venda");
 
-      setMensagem("Pagamento criado com sucesso!");
-      // Reset campos
-      setProdutoId("");
-      setQuantidade(1);
-      setFormaPagamento("");
-      setQtdParcelas(1);
-      setParcelas([]);
-      carregar();
+    // ✅ 2 - MONTAR PARCELAS
+    const listaParcelas = parcelas.map(p => ({
+      numero: p.numero,
+      valor: p.valor,
+      data_vencimento: p.data_vencimento
+    }));
 
-    } catch (err) {
-      console.error("Erro criar pagamento:", err);
-      setMensagem(err.response?.data?.erro || "Erro ao criar pagamento. Confira os dados.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // ✅ 3 - ENVIAR PAGAMENTO NO FORMATO CERTO
+    const pagamentoBody = {
+      ids_vendas: [id_venda], // 🔥 ARRAY (OBRIGATÓRIO)
+      id_forma_pagamento: Number(formaPagamento),
+      parcelas: listaParcelas
+    };
+
+    await api.post("/pagamentos", pagamentoBody);
+
+    // ✅ sucesso
+    setMensagem("Pagamento criado com sucesso!");
+
+    // reset
+    setProdutoId("");
+    setQuantidade(1);
+    setFormaPagamento("");
+    setQtdParcelas(1);
+    setParcelas([]);
+
+    carregar();
+
+  } catch (err) {
+    console.error("Erro criar pagamento:", err.response?.data || err);
+
+    setMensagem(
+      err.response?.data?.erro ||
+      err.message ||
+      "Erro ao criar pagamento"
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // ================= VER PARCELAS =================
   const verParcelas = async (p) => {
