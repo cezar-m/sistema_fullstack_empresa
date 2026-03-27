@@ -98,42 +98,47 @@ export default function Pagamentos() {
   };
 
   // ================= CRIAR VENDA + PAGAMENTO =================
-  const criarVendaEPagar = async () => {
-    if (!produtoId || !quantidade || !formaPagamento) {
-      setMensagem("Preencha os campos");
-      return;
-    }
+ const criarVendaEPagar = async () => {
+  if (!produtoId || quantidade <= 0) {
+    setMensagem("Produto ou quantidade inválida");
+    return;
+  }
 
-    setLoading(true);
+  if (!formaPagamento) {
+    setMensagem("Selecione forma de pagamento");
+    return;
+  }
 
-    try {
-      const venda = await api.post("/vendas", {
-        itens: [{
-          id_produto: Number(produtoId),
-          quantidade: Number(quantidade)
-        }]
-      });
+  try {
+    console.log("ENVIANDO VENDA:", {
+      id_produto: Number(produtoId),
+      quantidade: Number(quantidade)
+    });
 
-      await api.post("/pagamentos", {
-        ids_vendas: [venda.data.id],
-        id_forma_pagamento: Number(formaPagamento),
-        parcelas
-      });
+    const venda = await api.post("/vendas", {
+      itens: [{
+        id_produto: Number(produtoId),
+        quantidade: Number(quantidade)
+      }]
+    });
 
-      setMensagem("Venda + pagamento OK");
+    console.log("VENDA OK:", venda.data);
 
-      setProdutoId("");
-      setQuantidade(1);
-      setQtdParcelas(1);
+    await api.post("/pagamentos", {
+      ids_vendas: [venda.data.id],
+      id_forma_pagamento: Number(formaPagamento),
+      parcelas
+    });
 
-      carregar();
+    setMensagem("OK");
+    carregar();
 
-    } catch (err) {
-      setMensagem(err.response?.data?.erro || "Erro");
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error("ERRO COMPLETO:", err.response?.data);
+    setMensagem(err.response?.data?.erro || "Erro ao salvar");
+  }
+};
+
 
   // ================= PAGAR VENDAS EXISTENTES =================
   const pagarSelecionadas = async () => {
