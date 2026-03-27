@@ -98,7 +98,7 @@ export default function Pagamentos() {
   };
 
   // ================= CRIAR VENDA + PAGAMENTO =================
- const criarVendaEPagar = async () => {
+  const criarVendaEPagar = async () => {
   if (!produtoId || quantidade <= 0) {
     setMensagem("Produto ou quantidade inválida");
     return;
@@ -106,6 +106,19 @@ export default function Pagamentos() {
 
   if (!formaPagamento) {
     setMensagem("Selecione forma de pagamento");
+    return;
+  }
+
+  // ✅ CORREÇÃO DO ERRO (ESTOQUE)
+  const prod = produtos.find(p => Number(p.id) === Number(produtoId));
+
+  if (!prod) {
+    setMensagem("Produto não encontrado");
+    return;
+  }
+
+  if (quantidade > prod.quantidade) {
+    setMensagem(`Estoque insuficiente. Disponível: ${prod.quantidade}`);
     return;
   }
 
@@ -138,7 +151,6 @@ export default function Pagamentos() {
     setMensagem(err.response?.data?.erro || "Erro ao salvar");
   }
 };
-
 
   // ================= PAGAR VENDAS EXISTENTES =================
   const pagarSelecionadas = async () => {
