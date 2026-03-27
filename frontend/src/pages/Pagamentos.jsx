@@ -213,229 +213,209 @@ export default function Pagamentos() {
     return "text-secondary";
   };
 
-  return (
-    <DashboardLayout>
-      <div className="container mt-4">
+ return (
+  <DashboardLayout>
+    <div className="container mt-4">
 
-        <h3>Nova Venda + Pagamento</h3>
+      <h3>Vendas Pendentes</h3>
 
-        <div className="card p-3 mb-3">
-          <div className="row">
+      <div className="card p-3 mb-3">
 
-            <div className="col">
-              <select className="form-select"
-                value={produtoId}
-                onChange={e => setProdutoId(e.target.value)}>
-                <option value="">Produto</option>
-                {produtos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome} - R$ {p.preco}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col">
-              <input type="number" className="form-control"
-                value={quantidade}
-                onChange={e => setQuantidade(Number(e.target.value))}/>
-            </div>
-
-            <div className="col">
-              <input className="form-control" value={valor} readOnly />
-            </div>
-
-            <div className="col">
-              <select className="form-select"
-                value={formaPagamento}
-                onChange={e => setFormaPagamento(e.target.value)}>
-                <option value="">Forma</option>
-                {formas.map(f => (
-                  <option key={f.id} value={f.id}>{f.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col">
-              <input type="number" className="form-control"
-                value={qtdParcelas}
-                onChange={e => setQtdParcelas(Number(e.target.value))}/>
-            </div>
-
+        {/* FORMA DE PAGAMENTO */}
+        <div className="row mb-2">
+          <div className="col">
+            <select className="form-select"
+              value={formaPagamento}
+              onChange={e => setFormaPagamento(e.target.value)}>
+              <option value="">Forma de pagamento</option>
+              {formas.map(f => (
+                <option key={f.id} value={f.id}>{f.nome}</option>
+              ))}
+            </select>
           </div>
 
-          <button className="btn btn-success mt-3"
-            onClick={criarVendaEPagar}>
-            Salvar
-          </button>
+          <div className="col">
+            <input
+              type="number"
+              className="form-control"
+              placeholder="Qtd Parcelas"
+              value={qtdParcelas}
+              onChange={e => setQtdParcelas(Number(e.target.value))}
+            />
+          </div>
         </div>
 
-        <h3>Vendas Pendentes</h3>
-
+        {/* TABELA DE VENDAS */}
         <table className="table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Produtos</th>
+              <th>Qtd</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+
           <tbody>
             {vendas.filter(v => !v.pago).map(v => (
               <tr key={v.id}>
                 <td>
-                  <input type="checkbox"
-                    onChange={() => toggleVenda(v.id)} />
+                  <input
+                    type="checkbox"
+                    onChange={() => toggleVenda(v.id)}
+                  />
                 </td>
-                <td>{v.itens.map(i => i.produto).join(", ")}</td>
-                <td>R$ {Number(v.total).toFixed(2)}</td>
+
+                <td>
+                  {v.itens.map(i => i.produto).join(", ")}
+                </td>
+
+                <td>
+                  {v.itens.map(i => i.quantidade).join(", ")}
+                </td>
+
+                <td>
+                  R$ {Number(v.total).toFixed(2)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <button className="btn btn-primary" onClick={pagarSelecionadas}>
+        <button className="btn btn-primary mt-2" onClick={pagarSelecionadas}>
           Pagar selecionadas
         </button>
 
-        <hr />
-
-        <h3>Pagamentos</h3>
-
-        <table className="table">
-          <tbody>
-            {pagamentos.map(p => (
-              <tr key={p.id}>
-                <td>R$ {Number(p.valor).toFixed(2)}</td>
-
-                <td className={corStatus(p.status)}>
-                  {p.status}
-                </td>
-
-                <td className="d-flex gap-2">
-
-                  <button
-                    className="btn btn-info btn-sm"
-                    onClick={() => verParcelas(p)}>
-                    Parcelas
-                  </button>
-
-                  <button
-                    className="btn btn-warning btn-sm"
-                    onClick={() => abrirStatus(p)}>
-                    Status
-                  </button>
-
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* MODAL STATUS */}
-        {editarPagamento && (
-          <div className="modal d-block">
-            <div className="modal-dialog">
-              <div className="modal-content p-3">
-
-                <h5>Editar Status</h5>
-
-                <select className="form-select"
-                  value={novoStatus}
-                  onChange={e => setNovoStatus(e.target.value)}>
-                  <option value="pendente">Pendente</option>
-                  <option value="pago">Pago</option>
-                </select>
-
-                <button className="btn btn-success mt-2"
-                  onClick={salvarEdicao}>
-                  Salvar
-                </button>
-
-                <button className="btn btn-secondary mt-2"
-                  onClick={() => setEditarPagamento(null)}>
-                  Cancelar
-                </button>
-
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL PARCELAS */}
-        {parcelasSelecionadas.length > 0 && (
-          <div className="modal d-block">
-            <div className="modal-dialog modal-lg">
-              <div className="modal-content p-3">
-
-                <h5>Parcelas</h5>
-
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Nº</th>
-                      <th>Valor</th>
-                      <th>Status</th>
-                      <th>Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parcelasSelecionadas.map(p => (
-                      <tr key={p.id}>
-                        <td>{p.numero_parcela}</td>
-                        <td>R$ {Number(p.valor).toFixed(2)}</td>
-                        <td className={corStatus(p.status)}>
-                          {p.status}
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-warning btn-sm"
-                            onClick={() => {
-                              setEditarParcela(p);
-                              setNovoStatusParcela(p.status);
-                            }}>
-                            Editar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <button className="btn btn-secondary"
-                  onClick={() => setParcelasSelecionadas([])}>
-                  Fechar
-                </button>
-
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL EDITAR PARCELA */}
-        {editarParcela && (
-          <div className="modal d-block">
-            <div className="modal-dialog">
-              <div className="modal-content p-3">
-
-                <h5>Editar Parcela</h5>
-
-                <select className="form-select"
-                  value={novoStatusParcela}
-                  onChange={e => setNovoStatusParcela(e.target.value)}>
-                  <option value="pendente">Pendente</option>
-                  <option value="pago">Pago</option>
-                </select>
-
-                <button className="btn btn-success mt-2"
-                  onClick={salvarParcela}>
-                  Salvar
-                </button>
-
-                <button className="btn btn-secondary mt-2"
-                  onClick={() => setEditarParcela(null)}>
-                  Cancelar
-                </button>
-
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
-    </DashboardLayout>
-  );
-}
+
+      {/* MOSTRAR PARCELAS GERADAS */}
+      {parcelas.length > 0 && (
+        <div className="card p-3 mb-3">
+          <h5>Parcelas</h5>
+
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Valor</th>
+                <th>Vencimento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parcelas.map((p, i) => (
+                <tr key={i}>
+                  <td>{p.numero}</td>
+                  <td>R$ {p.valor}</td>
+                  <td>{p.data_vencimento}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <hr />
+
+      <h3>Pagamentos</h3>
+
+      <table className="table">
+        <tbody>
+          {pagamentos.map(p => (
+            <tr key={p.id}>
+              <td>R$ {Number(p.valor).toFixed(2)}</td>
+
+              <td className={corStatus(p.status)}>
+                {p.status}
+              </td>
+
+              <td className="d-flex gap-2">
+
+                <button
+                  className="btn btn-info btn-sm"
+                  onClick={() => verParcelas(p)}>
+                  Parcelas
+                </button>
+
+                <button
+                  className="btn btn-warning btn-sm"
+                  onClick={() => abrirStatus(p)}>
+                  Status
+                </button>
+
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* MODAIS (mantidos iguais) */}
+
+      {editarPagamento && (
+        <div className="modal d-block">
+          <div className="modal-dialog">
+            <div className="modal-content p-3">
+              <h5>Editar Status</h5>
+
+              <select className="form-select"
+                value={novoStatus}
+                onChange={e => setNovoStatus(e.target.value)}>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+              </select>
+
+              <button className="btn btn-success mt-2"
+                onClick={salvarEdicao}>
+                Salvar
+              </button>
+
+              <button className="btn btn-secondary mt-2"
+                onClick={() => setEditarPagamento(null)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {parcelasSelecionadas.length > 0 && (
+        <div className="modal d-block">
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content p-3">
+              <h5>Parcelas</h5>
+
+              <table className="table">
+                <tbody>
+                  {parcelasSelecionadas.map(p => (
+                    <tr key={p.id}>
+                      <td>{p.numero_parcela}</td>
+                      <td>R$ {Number(p.valor).toFixed(2)}</td>
+                      <td className={corStatus(p.status)}>
+                        {p.status}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-warning btn-sm"
+                          onClick={() => {
+                            setEditarParcela(p);
+                            setNovoStatusParcela(p.status);
+                          }}>
+                          Editar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <button className="btn btn-secondary"
+                onClick={() => setParcelasSelecionadas([])}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  </DashboardLayout>
+);
