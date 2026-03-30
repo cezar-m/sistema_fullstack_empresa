@@ -45,8 +45,6 @@ export default function Pagamentos() {
       setFormas(f.data || []);
       setPagamentos(pg.data || []);
       setVendas(v.data || []);
-
-      // 🔥 LIMPA seleção sempre que recarrega (EVITA DUPLICAR)
       setSelecionadas([]);
 
     } catch (err) {
@@ -56,6 +54,17 @@ export default function Pagamentos() {
   };
 
   useEffect(() => { carregar(); }, []);
+
+  // 🔥 SUMIR MENSAGEM EM 3 SEGUNDOS
+  useEffect(() => {
+    if (!mensagem) return;
+
+    const timer = setTimeout(() => {
+      setMensagem("");
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [mensagem]);
 
   // ================= VALOR =================
   useEffect(() => {
@@ -71,7 +80,6 @@ export default function Pagamentos() {
       return;
     }
 
-    // 🔥 soma total das vendas selecionadas
     const total = vendas
       .filter(v => selecionadas.includes(v.id))
       .reduce((acc, v) => acc + Number(v.total), 0);
@@ -139,13 +147,11 @@ export default function Pagamentos() {
 
       setMensagem("Pagamentos realizados");
 
-      // 🔥 LIMPA TUDO (ESSA PARTE RESOLVE SEU BUG)
       setSelecionadas([]);
       setFormaPagamento("");
       setQtdParcelas(1);
       setParcelas([]);
 
-      // 🔥 RECARREGA LISTA ATUALIZADA (REMOVE PENDENTES PAGOS)
       await carregar();
 
     } catch (err) {
@@ -267,8 +273,6 @@ export default function Pagamentos() {
 
         </div>
 
-        {/* ================= RESTO DO CÓDIGO (MODAIS + PAGAMENTOS) MANTIDO ================= */}
-
         <h3>Pagamentos</h3>
 
         <table className="table">
@@ -282,7 +286,6 @@ export default function Pagamentos() {
                 </td>
 
                 <td className="d-flex gap-2">
-
                   <button
                     className="btn btn-info btn-sm"
                     onClick={() => verParcelas(p)}>
@@ -294,12 +297,48 @@ export default function Pagamentos() {
                     onClick={() => abrirStatus(p)}>
                     Status
                   </button>
-
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {/* 🔥 AGORA PARCELAS EMBAIXO (SEM MODAL) */}
+        {parcelasSelecionadas.length > 0 && (
+          <div className="card p-3 mt-3">
+            <h5>Parcelas</h5>
+
+            <table className="table">
+              <tbody>
+                {parcelasSelecionadas.map(p => (
+                  <tr key={p.id}>
+                    <td>{p.numero_parcela}</td>
+                    <td>R$ {Number(p.valor).toFixed(2)}</td>
+                    <td className={corStatus(p.status)}>
+                      {p.status}
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-warning btn-sm"
+                        onClick={() => {
+                          setEditarParcela(p);
+                          setNovoStatusParcela(p.status);
+                        }}>
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <button
+              className="btn btn-secondary"
+              onClick={() => setParcelasSelecionadas([])}>
+              Fechar
+            </button>
+          </div>
+        )}
 
         {/* MODAL STATUS */}
         {editarPagamento && (
@@ -324,48 +363,6 @@ export default function Pagamentos() {
                 <button className="btn btn-secondary mt-2"
                   onClick={() => setEditarPagamento(null)}>
                   Cancelar
-                </button>
-
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL PARCELAS */}
-        {parcelasSelecionadas.length > 0 && (
-          <div className="modal d-block">
-            <div className="modal-dialog modal-lg">
-              <div className="modal-content p-3">
-
-                <h5>Parcelas</h5>
-
-                <table className="table">
-                  <tbody>
-                    {parcelasSelecionadas.map(p => (
-                      <tr key={p.id}>
-                        <td>{p.numero_parcela}</td>
-                        <td>R$ {Number(p.valor).toFixed(2)}</td>
-                        <td className={corStatus(p.status)}>
-                          {p.status}
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-warning btn-sm"
-                            onClick={() => {
-                              setEditarParcela(p);
-                              setNovoStatusParcela(p.status);
-                            }}>
-                            Editar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <button className="btn btn-secondary"
-                  onClick={() => setParcelasSelecionadas([])}>
-                  Fechar
                 </button>
 
               </div>
