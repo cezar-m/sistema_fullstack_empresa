@@ -51,7 +51,7 @@ export const criarPagamento = async (req, res) => {
       await client.query(
         `UPDATE vendas 
          SET pago=true
-         WHERE id=$1`
+         WHERE id=$1`,
         [id, v.id]
       );
     }
