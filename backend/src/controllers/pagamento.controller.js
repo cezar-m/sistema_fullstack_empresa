@@ -44,15 +44,15 @@ export const criarPagamento = async (req, res) => {
       [total]
     );
 
-    const id_pagamento = pagamento.rows[0].id;
+    const id = pagamento.rows[0].id;
 
     // 🔥 vincula vendas ao pagamento + marca como pago
     for (let v of vendas.rows) {
       await client.query(
         `UPDATE vendas 
-         SET pago=true, id_pagamento=$1 
-         WHERE id=$2`,
-        [id_pagamento, v.id]
+         SET pago=true,
+         WHERE id=$1`,
+        [id, v.id]
       );
     }
 
