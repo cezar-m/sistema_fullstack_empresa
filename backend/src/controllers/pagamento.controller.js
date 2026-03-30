@@ -7,69 +7,69 @@ export const criarPagamento = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const { ids_vendas, parcelas } = req.body;
+    const { ids_vendas, id_forma_pagamento, parcelas } = req.body;
 
-    if (!ids_vendas?.length) {
+    if (!ids_vendas || ids_vendas.length === 0) {
       throw new Error("Nenhuma venda enviada");
     }
 
     let total = 0;
+    const pagamentos = [];
 
-    // 🔥 trava e valida vendas
-    const vendas = await client.query(
-      `SELECT id, total, pago 
-       FROM vendas 
-       WHERE id = ANY($1)
-       FOR UPDATE`,
-      [ids_vendas]
-    );
+    for (let id_venda of ids_vendas) {
 
-    if (vendas.rows.length !== ids_vendas.length) {
-      throw new Error("Venda inválida");
-    }
+      const venda = await client.query(
+        `SELECT total, pago FROM vendas WHERE id=$1 FOR UPDATE`,
+        [id_venda]
+      );
 
-    for (let v of vendas.rows) {
-      if (v.pago) {
-        throw new Error(`Venda ${v.id} já paga`);
+      if (!venda.rows.length) throw new Error("Venda não existe");
+
+      if (venda.rows[0].pago) {
+        throw new Error(`Venda ${id_venda} já paga`);
       }
 
-      total += Number(v.total) || 0;
-    }
+      // 🔥 CORREÇÃO: garantir número
+      const valorVenda = Number(venda.rows[0].total) || 0;
+      total += valorVenda;
 
-    // 🔥 cria UM pagamento só
-    const pagamento = await client.query(
-      `INSERT INTO pagamentos (valor, status)
-       VALUES ($1,'pendente')
-       RETURNING id`,
-      [total]
-    );
-
-    const id = pagamento.rows[0].id;
-
-    // 🔥 vincula vendas ao pagamento + marca como pago
-    for (let v of vendas.rows) {
-      await client.query(
-        `UPDATE vendas 
-         SET pago=true
-         WHERE id=$1`,
-        [id, v.id]
+      const pagamento = await client.query(
+        `INSERT INTO pagamentos (id_venda, valor, status)
+         VALUES ($1,$2,'pendente')
+         RETURNING id`,
+        [id_venda, valorVenda]
       );
-    }
 
-    // 🔥 parcelas
-    if (parcelas?.length) {
-      for (let p of parcelas) {
-        await client.query(
-          `INSERT INTO parcelas (id_pagamento, numero_parcela, valor, data_vencimento, status)
-           VALUES ($1,$2,$3,$4,'pendente')`,
-          [id_pagamento, p.numero, p.valor, p.data_vencimento]
-        );
+      const id_pagamento = pagamento.rows[0].id;
+      pagamentos.push(id_pagamento);
+
+      // 🔥 CORREÇÃO: marcar venda como paga
+      await client.query(
+        `UPDATE vendas SET pago=true WHERE id=$1`,
+        [id_venda]
+      );
+
+      // parcelas
+      if (parcelas?.length) {
+        for (let p of parcelas) {
+          await client.query(
+            `INSERT INTO parcelas 
+             (id_pagamento, numero_parcela, valor, data_vencimento, status)
+             VALUES ($1,$2,$3,$4,'pendente')`,
+            [
+              id_pagamento,
+              p.numero,
+              Number(p.valor) || 0,
+              String(p.data_vencimento).split("T")[0] // 🔥 CORREÇÃO DO ERRO "T"
+            ]
+          );
+        }
       }
     }
 
     await client.query("COMMIT");
 
-    res.json({ sucesso: true, total });
+    res.json({ sucesso: true, total, pagamentos });
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -98,13 +98,11 @@ export const marcarComoPago = async (req, res) => {
 
     const id_venda = pag.rows[0].id_venda;
 
-    // marca pagamento
     await client.query(
       `UPDATE pagamentos SET status='pago' WHERE id=$1`,
       [id]
     );
 
-    // 🔥 MARCA VENDA COMO PAGA
     await client.query(
       `UPDATE vendas SET pago=true WHERE id=$1`,
       [id_venda]
@@ -161,6 +159,7 @@ export const listarPagamentosPorId = async (req, res) => {
   }
 };
 
+
 /* =========================
    LISTAR PARCELAS
 ========================= */
@@ -188,6 +187,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
   }
 };
 
+
 /* =========================
    ATUALIZAR PARCELA
 ========================= */
@@ -203,3 +203,4 @@ export const atualizarParcelas = async (req, res) => {
     res.status(400).json({ erro: err.message });
   }
 };
+
