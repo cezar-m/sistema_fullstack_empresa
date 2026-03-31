@@ -200,48 +200,44 @@ export const atualizarParcelas = async (req, res) => {
   const client = await db.connect();
 
   try {
-    await client.query("BEGIN");
-
     const id = Number(req.params.id);
 
-    const status = String(req.body?.status || "")
+    const statusRaw = req.body?.status;
+
+    const status = String(statusRaw || "")
       .toLowerCase()
       .trim();
 
-    if (!id) {
-      throw new Error("ID da parcela inválido");
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ erro: "ID inválido" });
     }
 
-    if (!["pago", "pendente"].includes(status)) {
-      throw new Error("Status inválido (use 'pago' ou 'pendente')");
+    if (status !== "pago" && status !== "pendente") {
+      return res.status(400).json({ erro: "Status inválido" });
     }
 
     const result = await client.query(
-      `UPDATE parcelas 
-       SET status = $1 
-       WHERE id = $2 
+      `UPDATE parcelas
+       SET status = $1
+       WHERE id = $2
        RETURNING *`,
       [status, id]
     );
 
     if (result.rowCount === 0) {
-      throw new Error("Parcela não encontrada");
+      return res.status(404).json({ erro: "Parcela não encontrada" });
     }
 
-    await client.query("COMMIT");
-
-    res.json({
+    return res.json({
       sucesso: true,
       parcela: result.rows[0]
     });
 
   } catch (err) {
-    await client.query("ROLLBACK");
-
     console.error("ERRO ATUALIZAR PARCELA:", err);
 
-    res.status(400).json({
-      erro: err.message
+    return res.status(500).json({
+      erro: "Erro interno ao atualizar parcela"
     });
 
   } finally {
