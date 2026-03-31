@@ -1,35 +1,38 @@
 import db from "../config/db.js";
 
-// ================= CRIAR PAGAMENTO =================
+/* =========================
+   CRIAR PAGAMENTO
+========================= */
 export const criarPagamento = async (req, res) => {
   const client = await db.connect();
 
   try {
     await client.query("BEGIN");
 
-    const { ids_vendas, id_forma_pagamento, parcelas } = req.body;
+    const { ids_vendas, parcelas = [] } = req.body;
 
-    if (!ids_vendas || ids_vendas.length === 0) {
+    if (!Array.isArray(ids_vendas) || ids_vendas.length === 0) {
       throw new Error("Nenhuma venda enviada");
     }
 
     let total = 0;
     const pagamentos = [];
 
-    for (let id_venda of ids_vendas) {
+    for (const id_venda of ids_vendas) {
 
       const venda = await client.query(
         `SELECT total, pago FROM vendas WHERE id=$1 FOR UPDATE`,
         [id_venda]
       );
 
-      if (!venda.rows.length) throw new Error("Venda não existe");
+      if (!venda.rows.length) {
+        throw new Error(`Venda ${id_venda} não existe`);
+      }
 
       if (venda.rows[0].pago) {
         throw new Error(`Venda ${id_venda} já paga`);
       }
 
-      // 🔥 CORREÇÃO: garantir número
       const valorVenda = Number(venda.rows[0].total) || 0;
       total += valorVenda;
 
@@ -43,33 +46,33 @@ export const criarPagamento = async (req, res) => {
       const id_pagamento = pagamento.rows[0].id;
       pagamentos.push(id_pagamento);
 
-      // 🔥 CORREÇÃO: marcar venda como paga
       await client.query(
         `UPDATE vendas SET pago=true WHERE id=$1`,
         [id_venda]
       );
 
-      // parcelas
-      if (parcelas?.length) {
-        for (let p of parcelas) {
-          await client.query(
-            `INSERT INTO parcelas 
-             (id_pagamento, numero_parcela, valor, data_vencimento, status)
-             VALUES ($1,$2,$3,$4,'pendente')`,
-            [
-              id_pagamento,
-              p.numero,
-              Number(p.valor) || 0,
-              String(p.data_vencimento).split("T")[0] // 🔥 CORREÇÃO DO ERRO "T"
-            ]
-          );
-        }
+      for (const p of parcelas) {
+        await client.query(
+          `INSERT INTO parcelas 
+           (id_pagamento, numero_parcela, valor, data_vencimento, status)
+           VALUES ($1,$2,$3,$4,'pendente')`,
+          [
+            id_pagamento,
+            p.numero,
+            Number(p.valor) || 0,
+            String(p.data_vencimento).split("T")[0]
+          ]
+        );
       }
     }
 
     await client.query("COMMIT");
 
-    res.json({ sucesso: true, total, pagamentos });
+    res.json({
+      sucesso: true,
+      total,
+      pagamentos
+    });
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -80,7 +83,9 @@ export const criarPagamento = async (req, res) => {
 };
 
 
-// ================= MARCAR COMO PAGO =================
+/* =========================
+   MARCAR COMO PAGO
+========================= */
 export const marcarComoPago = async (req, res) => {
   const client = await db.connect();
 
@@ -94,7 +99,9 @@ export const marcarComoPago = async (req, res) => {
       [id]
     );
 
-    if (!pag.rows.length) throw new Error("Pagamento não encontrado");
+    if (!pag.rows.length) {
+      throw new Error("Pagamento não encontrado");
+    }
 
     const id_venda = pag.rows[0].id_venda;
 
@@ -142,7 +149,7 @@ export const listarPagamentosPorId = async (req, res) => {
            '[]'
          ) AS itens
        FROM pagamentos p
-       JOIN vendas v ON v.id = p.id_venda
+       LEFT JOIN vendas v ON v.id = p.id_venda
        LEFT JOIN itens_venda iv ON iv.id_venda = v.id
        LEFT JOIN produtos pr ON pr.id = iv.id_produto
        WHERE v.id_usuario=$1
@@ -161,55 +168,67 @@ export const listarPagamentosPorId = async (req, res) => {
 
 
 /* =========================
-   LISTAR PARCELAS
+   LISTAR PARCELAS (SEM JOIN BUGADO)
 ========================= */
 export const listarParcelasPorPagamento = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT 
-        pa.id,
-        pa.numero_parcela,
-        pa.valor,
-        pa.status,
-        pr.nome AS produto
-      FROM parcelas pa
-      JOIN pagamentos p ON p.id = pa.id_pagamento
-      JOIN vendas v ON v.id = p.id_venda
-      JOIN itens_venda iv ON iv.id_venda = v.id
-      JOIN produtos pr ON pr.id = iv.id_produto
-      WHERE pa.id_pagamento = $1`,
+        id,
+        numero_parcela,
+        valor,
+        status,
+        data_vencimento
+      FROM parcelas
+      WHERE id_pagamento = $1
+      ORDER BY numero_parcela ASC`,
       [req.params.id]
     );
 
     res.json(result.rows);
+
   } catch (err) {
+    console.error("ERRO LISTAR PARCELAS:", err);
     res.status(400).json({ erro: err.message });
   }
 };
 
 
 /* =========================
-   ATUALIZAR PARCELA
+   ATUALIZAR PARCELA (BLINDADO)
 ========================= */
 export const atualizarParcelas = async (req, res) => {
   try {
-    const status = String(req.body.status).toLowerCase().trim();
+    const id = Number(req.params.id);
+    const status = String(req.body?.status || "").toLowerCase().trim();
 
-    const result = await db.query(
-      `UPDATE parcelas SET status=$1 WHERE id=$2 RETURNING *`,
-      [status, req.params.id]
-    );
-
-    if (result.rowCount === 0) {
-      throw new Error("Parcela não encontrada ou não alterada");
+    if (!id) {
+      throw new Error("ID inválido");
     }
 
-    res.json({ sucesso: true, parcela: result.rows[0] });
+    if (!["pago", "pendente"].includes(status)) {
+      throw new Error("Status inválido");
+    }
+
+    const result = await db.query(
+      `UPDATE parcelas 
+       SET status=$1 
+       WHERE id=$2 
+       RETURNING *`,
+      [status, id]
+    );
+
+    if (!result.rowCount) {
+      throw new Error("Parcela não encontrada");
+    }
+
+    res.json({
+      sucesso: true,
+      parcela: result.rows[0]
+    });
 
   } catch (err) {
     console.error("ERRO ATUALIZAR PARCELA:", err);
     res.status(400).json({ erro: err.message });
   }
 };
-
-
