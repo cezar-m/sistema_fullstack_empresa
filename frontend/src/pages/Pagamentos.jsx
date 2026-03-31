@@ -204,7 +204,7 @@ export default function Pagamentos() {
       <div className="container mt-4">
 
         {mensagem && (
-          <div className="alert alert-warning">{mensagem}</div>
+          <div className="alert alert-success">{mensagem}</div>
         )}
 
         <h3>Vendas Pendentes</h3>
