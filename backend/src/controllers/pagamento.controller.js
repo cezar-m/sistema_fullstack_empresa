@@ -193,34 +193,42 @@ export const listarParcelasPorPagamento = async (req, res) => {
   }
 };
 
-
 /* =========================
    ATUALIZAR PARCELA (BLINDADO)
 ========================= */
 export const atualizarParcelas = async (req, res) => {
+  const client = await db.connect();
+
   try {
+    await client.query("BEGIN");
+
     const id = Number(req.params.id);
-    const status = String(req.body?.status || "").toLowerCase().trim();
+
+    const status = String(req.body?.status || "")
+      .toLowerCase()
+      .trim();
 
     if (!id) {
-      throw new Error("ID inválido");
+      throw new Error("ID da parcela inválido");
     }
 
     if (!["pago", "pendente"].includes(status)) {
-      throw new Error("Status inválido");
+      throw new Error("Status inválido (use 'pago' ou 'pendente')");
     }
 
-    const result = await db.query(
+    const result = await client.query(
       `UPDATE parcelas 
-       SET status=$1 
-       WHERE id=$2 
+       SET status = $1 
+       WHERE id = $2 
        RETURNING *`,
       [status, id]
     );
 
-    if (!result.rowCount) {
+    if (result.rowCount === 0) {
       throw new Error("Parcela não encontrada");
     }
+
+    await client.query("COMMIT");
 
     res.json({
       sucesso: true,
@@ -228,7 +236,15 @@ export const atualizarParcelas = async (req, res) => {
     });
 
   } catch (err) {
+    await client.query("ROLLBACK");
+
     console.error("ERRO ATUALIZAR PARCELA:", err);
-    res.status(400).json({ erro: err.message });
+
+    res.status(400).json({
+      erro: err.message
+    });
+
+  } finally {
+    client.release();
   }
 };
