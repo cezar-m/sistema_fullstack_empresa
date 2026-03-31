@@ -214,10 +214,13 @@ export default function Pagamentos() {
   };
 
   const corStatus = (s) => {
-   if (s === "pago") return "text-success";
-   if (s === "pendente") return "text-danger";
-   return "text-secondary";
- };
+  const status = String(s || "").toLowerCase().trim();
+
+  if (status === "pago") return "text-success";
+  if (status === "pendente") return "text-danger";
+
+  return "text-secondary";
+};
 
   return (
     <DashboardLayout>
