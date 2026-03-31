@@ -175,12 +175,22 @@ export default function Pagamentos() {
 
   // ================= EDITAR PAGAMENTO =================
   const salvarEdicao = async () => {
-    await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
-      status: novoStatus
-    });
-
-    setEditarPagamento(null);
-    carregar();
+    try {
+  
+      await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
+        status: String(novoStatus).toLowerCase().trim()
+      });
+  
+      setMensagem("Status atualizado com sucesso");
+  
+      setEditarPagamento(null);
+  
+      await carregar();
+  
+    } catch (err) {
+      console.error(err);
+      setMensagem(err?.response?.data?.erro || "Erro ao atualizar status");
+    }
   };
 
   // ================= EDITAR PARCELA =================
