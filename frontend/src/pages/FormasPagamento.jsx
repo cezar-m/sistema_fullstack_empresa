@@ -9,6 +9,10 @@ export default function FormasPagamento() {
   const [ativo, setAtivo] = useState(true); // boolean
   const [editadoId, setEditadoId] = useState(null);
 
+  // ✅ NOVO: mensagem
+  const [mensagem, setMensagem] = useState("");
+  const [tipoMensagem, setTipoMensagem] = useState("");
+
   // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
   const formasPorPagina = 16;
@@ -19,7 +23,6 @@ export default function FormasPagamento() {
   const carregarFormas = async () => {
     try {
       const res = await api.get("/formas-pagamento");
-      // Garante que cada ativo seja number
       const formas = Array.isArray(res.data)
         ? res.data.map((f) => ({ ...f, ativo: Number(f.ativo) }))
         : [];
@@ -43,6 +46,17 @@ export default function FormasPagamento() {
     setEditadoId(null);
   };
 
+  // ✅ NOVO: função de mensagem
+  const mostrarMensagem = (msg, tipo) => {
+    setMensagem(msg);
+    setTipoMensagem(tipo);
+
+    setTimeout(() => {
+      setMensagem("");
+      setTipoMensagem("");
+    }, 3000);
+  };
+
   // =========================
   // CRIAR / ATUALIZAR
   // =========================
@@ -55,8 +69,15 @@ export default function FormasPagamento() {
 
       if (editadoId) {
         await api.put(`/formas-pagamento/${editadoId}`, payload);
+
+        // ✅ mensagem atualizar
+        mostrarMensagem("Pagamento alterado com sucesso", "success");
+
       } else {
         await api.post("/formas-pagamento", payload);
+
+        // ✅ mensagem cadastrar
+        mostrarMensagem("Forma de pagamento cadastrada com sucesso", "success");
       }
 
       limpar();
@@ -73,7 +94,7 @@ export default function FormasPagamento() {
   // =========================
   const editar = (forma) => {
     setNome(forma.nome);
-    setAtivo(Number(forma.ativo) === 1); // garante boolean
+    setAtivo(Number(forma.ativo) === 1);
     setEditadoId(forma.id);
   };
 
@@ -85,9 +106,14 @@ export default function FormasPagamento() {
 
     try {
       await api.delete(`/formas-pagamento/${id}`);
+
+      // ✅ mensagem excluir
+      mostrarMensagem("Pagamento deletado com sucesso", "danger");
+
       const total = formasPagamento.length - 1;
       const ultimaPagina = Math.ceil(total / formasPorPagina);
       if (paginaAtual > ultimaPagina && paginaAtual > 1) setPaginaAtual(paginaAtual - 1);
+
       carregarFormas();
     } catch (err) {
       console.error("Erro ao excluir forma:", err);
@@ -110,6 +136,13 @@ export default function FormasPagamento() {
     <DashboardLayout>
       <div className="mb-2">
         <h2>Formas de Pagamento</h2>
+
+        {/* ✅ MENSAGEM */}
+        {mensagem && (
+          <div className={`alert alert-${tipoMensagem}`}>
+            {mensagem}
+          </div>
+        )}
 
         {/* FORMULÁRIO */}
         <form onSubmit={handleSubmit} className="card p-3 mb-4">
