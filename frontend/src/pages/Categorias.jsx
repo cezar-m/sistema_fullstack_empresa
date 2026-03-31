@@ -11,6 +11,10 @@ export default function Categorias() {
 	const [nome, setNome] = useState("");
 	const [editadoId, setEditadoId] = useState(null);
 
+	// ✅ NOVO: mensagem
+	const [mensagem, setMensagem] = useState("");
+	const [tipoMensagem, setTipoMensagem] = useState(""); // success | danger
+
 	// Paginação
 	const [paginaAtual, setPaginaAtual] = useState(1);
 	const categoriasPorPagina = 16;
@@ -55,6 +59,17 @@ export default function Categorias() {
 		setEditadoId(null);
 	};
 
+	// ✅ NOVO: função de mensagem com timeout
+	const mostrarMensagem = (msg, tipo) => {
+		setMensagem(msg);
+		setTipoMensagem(tipo);
+
+		setTimeout(() => {
+			setMensagem("");
+			setTipoMensagem("");
+		}, 3000);
+	};
+
 	/* =========================
 	   CRIAR / EDITAR
 	========================= */
@@ -76,12 +91,17 @@ export default function Categorias() {
 					nome: nome.trim()
 				});
 
+				// ✅ mensagem atualizar
+				mostrarMensagem("Alterado estoque com sucesso", "success");
+
 			} else {
 
 				await api.post("/categorias", {
 					nome: nome.trim()
 				});
 
+				// ✅ mensagem cadastrar
+				mostrarMensagem("Cadastro de estoque com sucesso", "success");
 			}
 
 			limpar();
@@ -123,6 +143,9 @@ export default function Categorias() {
 		try {
 
 			await api.delete(`/categorias/${id}`);
+
+			// ✅ mensagem excluir
+			mostrarMensagem("Deletado estoque com sucesso", "danger");
 
 			setPaginaAtual(1);
 			carregarCategorias();
@@ -166,6 +189,13 @@ export default function Categorias() {
 			<div className="mb-2">
 
 				<h2>Categorias</h2>
+
+				{/* ✅ MENSAGEM */}
+				{mensagem && (
+					<div className={`alert alert-${tipoMensagem}`}>
+						{mensagem}
+					</div>
+				)}
 
 				{/* FORMULÁRIO */}
 
@@ -320,4 +350,4 @@ export default function Categorias() {
 
 		</DashboardLayout>
 	);
-}				
+}
