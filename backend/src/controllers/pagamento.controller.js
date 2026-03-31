@@ -193,8 +193,7 @@ export const listarParcelasPorPagamento = async (req, res) => {
 ========================= */
 export const atualizarParcelas = async (req, res) => {
   try {
-
-    const status = String(req.body.status).toUpperCase().trim();
+    const status = String(req.body.status).toLowerCase().trim();
 
     const result = await db.query(
       `UPDATE parcelas SET status=$1 WHERE id=$2 RETURNING *`,
