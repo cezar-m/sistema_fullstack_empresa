@@ -213,6 +213,12 @@ export default function Pagamentos() {
     }
   };
 
+  const corStatus = (s) => {
+   if (s === "pago") return "text-success";
+   if (s === "pendente") return "text-danger";
+   return "text-secondary";
+ };
+
   return (
     <DashboardLayout>
       <div className="container mt-4">
