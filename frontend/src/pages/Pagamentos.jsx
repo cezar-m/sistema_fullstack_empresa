@@ -195,18 +195,22 @@ export default function Pagamentos() {
 
   // ================= EDITAR PARCELA =================
   const salvarParcela = async () => {
-    await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
-      status: novoStatusParcela
-    });
-
-    setEditarParcela(null);
-    carregar();
-  };
-
-  const corStatus = (s) => {
-    if (s === "pago") return "text-success";
-    if (s === "pendente") return "text-danger";
-    return "text-secondary";
+    try {
+  
+      await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
+        status: String(novoStatusParcela).toLowerCase().trim()
+      });
+  
+      setMensagem("Parcela atualizada com sucesso");
+  
+      setEditarParcela(null);
+  
+      await carregar();
+  
+    } catch (err) {
+      console.error(err);
+      setMensagem(err?.response?.data?.erro || "Erro ao atualizar parcela");
+    }
   };
 
   return (
