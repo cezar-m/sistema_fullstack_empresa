@@ -193,14 +193,24 @@ export const listarParcelasPorPagamento = async (req, res) => {
 ========================= */
 export const atualizarParcelas = async (req, res) => {
   try {
-    await db.query(
-      `UPDATE parcelas SET status=$1 WHERE id=$2`,
-      [req.body.status, req.params.id]
+
+    const status = String(req.body.status).toUpperCase().trim();
+
+    const result = await db.query(
+      `UPDATE parcelas SET status=$1 WHERE id=$2 RETURNING *`,
+      [status, req.params.id]
     );
 
-    res.json({ sucesso: true });
+    if (result.rowCount === 0) {
+      throw new Error("Parcela não encontrada ou não alterada");
+    }
+
+    res.json({ sucesso: true, parcela: result.rows[0] });
+
   } catch (err) {
+    console.error("ERRO ATUALIZAR PARCELA:", err);
     res.status(400).json({ erro: err.message });
   }
 };
+
 
