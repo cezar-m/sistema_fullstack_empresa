@@ -112,8 +112,8 @@ export default function PaginaVendas() {
   return (
     <DashboardLayout>
       <div className="container mt-4">
+        {mensagem && <div className={`alert mt-3 ${tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"}`}>{mensagem}</div>}
         <div className="card shadow mb-4">
-            {mensagem && <div className={`alert mt-3 ${tipoMensagem === "sucesso" ? "alert-success" : "alert-danger"}`}>{mensagem}</div>}
           <div className="card-header bg-primary text-white fw-bold">Nova Venda</div>
           <div className="card-body">
             <div className="row g-3">
