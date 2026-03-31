@@ -198,7 +198,7 @@ export default function Pagamentos() {
     try {
   
       await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
-        status: String(novoStatusParcela).toLowerCase().trim()
+        status: String(novoStatusParcela).toUpperCase().trim()
       });
   
       setMensagem("Parcela atualizada com sucesso");
