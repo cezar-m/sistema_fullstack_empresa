@@ -46,22 +46,33 @@ export const criarPagamento = async (req, res) => {
       const id_pagamento = pagamento.rows[0].id;
       pagamentos.push(id_pagamento);
 
-      await client.query(
-        `UPDATE vendas SET pago=true WHERE id=$1`,
-        [id_venda]
-      );
+      // 🔥 NÃO marcar venda como paga aqui
 
-      for (const p of parcelas) {
+      // criar parcelas se existirem
+      if (parcelas.length > 0) {
+        for (const p of parcelas) {
+          await client.query(
+            `INSERT INTO parcelas 
+             (id_pagamento, numero_parcela, valor, data_vencimento, status)
+             VALUES ($1,$2,$3,$4,'pendente')`,
+            [
+              id_pagamento,
+              p.numero,
+              Number(p.valor) || 0,
+              String(p.data_vencimento).split("T")[0]
+            ]
+          );
+        }
+      } else {
+        // 🔥 pagamento à vista → já pago
         await client.query(
-          `INSERT INTO parcelas 
-           (id_pagamento, numero_parcela, valor, data_vencimento, status)
-           VALUES ($1,$2,$3,$4,'pendente')`,
-          [
-            id_pagamento,
-            p.numero,
-            Number(p.valor) || 0,
-            String(p.data_vencimento).split("T")[0]
-          ]
+          `UPDATE pagamentos SET status='pago' WHERE id=$1`,
+          [id_pagamento]
+        );
+
+        await client.query(
+          `UPDATE vendas SET pago=true WHERE id=$1`,
+          [id_venda]
         );
       }
     }
@@ -84,7 +95,7 @@ export const criarPagamento = async (req, res) => {
 
 
 /* =========================
-   MARCAR COMO PAGO
+   MARCAR COMO PAGO (CORRIGIDO)
 ========================= */
 export const marcarComoPago = async (req, res) => {
   const client = await db.connect();
@@ -93,6 +104,14 @@ export const marcarComoPago = async (req, res) => {
     await client.query("BEGIN");
 
     const { id } = req.params;
+
+    const status = String(req.body?.status || "")
+      .toLowerCase()
+      .trim();
+
+    if (status !== "pago" && status !== "pendente") {
+      throw new Error("Status inválido");
+    }
 
     const pag = await client.query(
       `SELECT id_venda FROM pagamentos WHERE id=$1`,
@@ -106,13 +125,13 @@ export const marcarComoPago = async (req, res) => {
     const id_venda = pag.rows[0].id_venda;
 
     await client.query(
-      `UPDATE pagamentos SET status='pago' WHERE id=$1`,
-      [id]
+      `UPDATE pagamentos SET status=$1 WHERE id=$2`,
+      [status, id]
     );
 
     await client.query(
-      `UPDATE vendas SET pago=true WHERE id=$1`,
-      [id_venda]
+      `UPDATE vendas SET pago=$1 WHERE id=$2`,
+      [status === "pago", id_venda]
     );
 
     await client.query("COMMIT");
@@ -168,7 +187,7 @@ export const listarPagamentosPorId = async (req, res) => {
 
 
 /* =========================
-   LISTAR PARCELAS (SEM JOIN BUGADO)
+   LISTAR PARCELAS
 ========================= */
 export const listarParcelasPorPagamento = async (req, res) => {
   try {
@@ -193,53 +212,79 @@ export const listarParcelasPorPagamento = async (req, res) => {
   }
 };
 
+
 /* =========================
-   ATUALIZAR PARCELA (BLINDADO)
+   ATUALIZAR PARCELA (INTELIGENTE)
 ========================= */
 export const atualizarParcelas = async (req, res) => {
   const client = await db.connect();
 
   try {
+    await client.query("BEGIN");
+
     const id = Number(req.params.id);
 
-    const statusRaw = req.body?.status;
-
-    const status = String(statusRaw || "")
+    const status = String(req.body?.status || "")
       .toLowerCase()
       .trim();
 
     if (!id || isNaN(id)) {
-      return res.status(400).json({ erro: "ID inválido" });
+      throw new Error("ID inválido");
     }
 
     if (status !== "pago" && status !== "pendente") {
-      return res.status(400).json({ erro: "Status inválido" });
+      throw new Error("Status inválido");
     }
 
-    const result = await client.query(
+    const parcela = await client.query(
       `UPDATE parcelas
        SET status = $1
        WHERE id = $2
-       RETURNING *`,
+       RETURNING id_pagamento`,
       [status, id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ erro: "Parcela não encontrada" });
+    if (!parcela.rowCount) {
+      throw new Error("Parcela não encontrada");
     }
 
-    return res.json({
-      sucesso: true,
-      parcela: result.rows[0]
-    });
+    const id_pagamento = parcela.rows[0].id_pagamento;
+
+    // 🔥 verificar se todas estão pagas
+    const check = await client.query(
+      `SELECT COUNT(*) FILTER (WHERE status='pendente') AS pendentes
+       FROM parcelas
+       WHERE id_pagamento=$1`,
+      [id_pagamento]
+    );
+
+    const pendentes = Number(check.rows[0].pendentes);
+
+    if (pendentes === 0) {
+      await client.query(
+        `UPDATE pagamentos SET status='pago' WHERE id=$1`,
+        [id_pagamento]
+      );
+
+      await client.query(
+        `UPDATE vendas SET pago=true
+         WHERE id = (SELECT id_venda FROM pagamentos WHERE id=$1)`,
+        [id_pagamento]
+      );
+    } else {
+      await client.query(
+        `UPDATE pagamentos SET status='pendente' WHERE id=$1`,
+        [id_pagamento]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.json({ sucesso: true });
 
   } catch (err) {
-    console.error("ERRO ATUALIZAR PARCELA:", err);
-
-    return res.status(500).json({
-      erro: "Erro interno ao atualizar parcela"
-    });
-
+    await client.query("ROLLBACK");
+    res.status(400).json({ erro: err.message });
   } finally {
     client.release();
   }
