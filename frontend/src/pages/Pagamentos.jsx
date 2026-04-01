@@ -345,15 +345,34 @@ export default function Pagamentos() {
           <div className="card p-3 mt-3">
             <h5>Parcelas</h5>
 
-            <table className="table">
+           <table className="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th> {/* 🔥 NOVO */}
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+            
               <tbody>
                 {parcelasSelecionadas.map(p => (
                   <tr key={p.id}>
                     <td>{p.numero_parcela}</td>
+            
                     <td>R$ {Number(p.valor).toFixed(2)}</td>
+            
+                    <td>
+                      {p.data_vencimento
+                        ? new Date(p.data_vencimento).toLocaleDateString("pt-BR")
+                        : "-"}
+                    </td>
+            
                     <td className={corStatus(p.status)}>
                       {p.status}
                     </td>
+            
                     <td>
                       <button
                         className="btn btn-warning btn-sm"
@@ -368,7 +387,7 @@ export default function Pagamentos() {
                 ))}
               </tbody>
             </table>
-
+            
             <button
               className="btn btn-secondary"
               onClick={() => setParcelasSelecionadas([])}>
