@@ -170,48 +170,62 @@ export default function Pagamentos() {
   // ================= ABRIR STATUS =================
   const abrirStatus = (p) => {
     setEditarPagamento(p);
-    setNovoStatus(p.status);
+    setNovoStatus(String(p.status).toLowerCase().trim()); // 🔥 importante
   };
 
   // ================= EDITAR PAGAMENTO =================
   const salvarEdicao = async () => {
-    try {
-  
-      await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
-        status: String(novoStatus).toLowerCase().trim()
-      });
-  
-      setMensagem("Status atualizado com sucesso");
-  
-      setEditarPagamento(null);
-  
-      await carregar();
-  
-    } catch (err) {
-      console.error(err);
-      setMensagem(err?.response?.data?.erro || "Erro ao atualizar status");
-    }
-  };
+   try {
+
+     await api.put(`/pagamentos/pago/${editarPagamento.id}`, {
+      status: String(novoStatus).toLowerCase().trim()
+   });
+
+    // 🔥 ATUALIZA DIRETO NO STATE (SEM ESPERAR BACKEND)
+    setPagamentos(prev =>
+      prev.map(p =>
+        p.id === editarPagamento.id
+          ? { ...p, status: novoStatus }
+          : p
+      )
+     );
+
+     setMensagem("Status atualizado com sucesso");
+
+     setEditarPagamento(null);
+
+   } catch (err) {
+     console.error(err);
+     setMensagem(err?.response?.data?.erro || "Erro ao atualizar status");
+   }
+ };
 
   // ================= EDITAR PARCELA =================
-  const salvarParcela = async () => {
-    try {
-  
-      await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
-        status: String(novoStatusParcela).toLowerCase().trim()
-      });
-  
-      setMensagem("Parcela atualizada com sucesso");
-  
-      setEditarParcela(null);
+ const salvarParcela = async () => {
+  try {
 
-      await carregar();
-  
-    } catch (err) {
-      console.error(err);
-      setMensagem(err?.response?.data?.erro || "Erro ao atualizar parcela");
-    }
-  };
+    await api.put(`/pagamentos/parcelas/${editarParcela.id}`, {
+      status: String(novoStatusParcela).toLowerCase().trim()
+    });
+
+    // 🔥 atualiza na tela na hora
+    setParcelasSelecionadas(prev =>
+      prev.map(p =>
+        p.id === editarParcela.id
+          ? { ...p, status: novoStatusParcela }
+          : p
+      )
+    );
+
+    setMensagem("Parcela atualizada com sucesso");
+
+    setEditarParcela(null);
+
+  } catch (err) {
+    console.error(err);
+    setMensagem(err?.response?.data?.erro || "Erro ao atualizar parcela");
+  }
+};
 
   const corStatus = (s) => {
   const status = String(s || "").toLowerCase().trim();
@@ -371,9 +385,11 @@ export default function Pagamentos() {
 
                 <h5>Editar Status</h5>
 
-                <select className="form-select"
-                  value={novoStatus}
-                  onChange={e => setNovoStatus(e.target.value)}>
+               <select
+                  className="form-select"
+                  value={String(novoStatus).toLowerCase().trim()}
+                  onChange={e => setNovoStatus(e.target.value)}
+               >
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
                 </select>
@@ -401,9 +417,11 @@ export default function Pagamentos() {
 
                 <h5>Editar Parcela</h5>
 
-                <select className="form-select"
-                  value={novoStatusParcela}
-                  onChange={e => setNovoStatusParcela(e.target.value)}>
+               <select
+                  className="form-select"
+                  value={String(novoStatusParcela).toLowerCase().trim()}
+                  onChange={e => setNovoStatusParcela(e.target.value)}
+                >
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
                 </select>
