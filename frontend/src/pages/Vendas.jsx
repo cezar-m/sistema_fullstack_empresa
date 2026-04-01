@@ -109,6 +109,10 @@ export default function PaginaVendas() {
   const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
   const vendasPagina = vendas.slice((paginaAtual - 1) * vendasPorPagina, paginaAtual * vendasPorPagina);
 
+  const totalGeral = () => {
+    return vendas.reduce((acc, v) => acc + Number(v.total || 0), 0);
+  };
+
   return (
     <DashboardLayout>
       <div className="container mt-4">
@@ -174,7 +178,14 @@ export default function PaginaVendas() {
           <div className="card-body">
             <table className="table table-bordered">
               <thead><tr><th>Produto</th><th>Quantidade</th></tr></thead>
-              <tbody>{totalPorProduto().map((i, idx) => <tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}</tbody>
+              <tbody>
+                  {totalPorProduto().map((i, idx) => <tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}
+                  <div className="text-end mt-3">
+                    <h5 className="fw-bold text-success">
+                      Total Geral: R$ {totalGeral().toFixed(2)}
+                    </h5>
+                  </div>
+              </tbody>
             </table>
           </div>
         </div>
