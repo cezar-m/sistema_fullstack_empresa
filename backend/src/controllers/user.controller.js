@@ -16,13 +16,11 @@ export const deletar = async (req, res) => {
 
     await client.query("BEGIN");
 
-    // 1. parcelas
-    await client.query("DELETE FROM parcelas WHERE id_usuario = $1", [id]);
+    // =========================
+    // 1. ITENS_VENDA (DEPENDÊNCIA MAIS INTERNA)
+    // =========================
 
-    // 2. pagamentos
-    await client.query("DELETE FROM pagamentos WHERE id_usuario = $1", [id]);
-
-    // 3. itens_venda (ANTES de vendas e produtos)
+    // Por vendas do usuário
     await client.query(`
       DELETE FROM itens_venda 
       WHERE id_venda IN (
@@ -30,13 +28,42 @@ export const deletar = async (req, res) => {
       )
     `, [id]);
 
-    // 4. vendas
+    // Por produtos do usuário
+    await client.query(`
+      DELETE FROM itens_venda 
+      WHERE id_produto IN (
+        SELECT id FROM produtos WHERE id_usuario = $1
+      )
+    `, [id]);
+
+    // =========================
+    // 2. PARCELAS
+    // =========================
+    await client.query(`
+      DELETE FROM parcelas
+      WHERE id_pagamento IN (
+        SELECT id FROM pagamentos WHERE id_usuario = $1
+      )
+    `, [id]);
+
+    // =========================
+    // 3. PAGAMENTOS
+    // =========================
+    await client.query("DELETE FROM pagamentos WHERE id_usuario = $1", [id]);
+
+    // =========================
+    // 4. VENDAS
+    // =========================
     await client.query("DELETE FROM vendas WHERE id_usuario = $1", [id]);
 
-    // 5. produtos
+    // =========================
+    // 5. PRODUTOS
+    // =========================
     await client.query("DELETE FROM produtos WHERE id_usuario = $1", [id]);
 
-    // 6. usuário
+    // =========================
+    // 6. USUÁRIO
+    // =========================
     await client.query("DELETE FROM usuarios WHERE id = $1", [id]);
 
     await client.query("COMMIT");
@@ -45,10 +72,18 @@ export const deletar = async (req, res) => {
 
   } catch (err) {
     await client.query("ROLLBACK");
+
+    console.error("🔥 ERRO AO DELETAR USUÁRIO:");
     console.error(err);
-    return res.status(500).json({ erro: err.message });
+
+    return res.status(500).json({
+      erro: err.message,
+      detalhe: err.detail || null,
+      tabela: err.table || null,
+      constraint: err.constraint || null
+    });
+
   } finally {
     client.release();
   }
 };
-
