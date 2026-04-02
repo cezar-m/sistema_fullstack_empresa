@@ -17,10 +17,8 @@ export const deletar = async (req, res) => {
     await client.query("BEGIN");
 
     // =========================
-    // 1. ITENS_VENDA (DEPENDÊNCIA MAIS INTERNA)
+    // 1. ITENS_VENDA
     // =========================
-
-    // Por vendas do usuário
     await client.query(`
       DELETE FROM itens_venda 
       WHERE id_venda IN (
@@ -28,7 +26,6 @@ export const deletar = async (req, res) => {
       )
     `, [id]);
 
-    // Por produtos do usuário
     await client.query(`
       DELETE FROM itens_venda 
       WHERE id_produto IN (
@@ -37,19 +34,26 @@ export const deletar = async (req, res) => {
     `, [id]);
 
     // =========================
-    // 2. PARCELAS
+    // 2. PARCELAS (via pagamentos)
     // =========================
     await client.query(`
       DELETE FROM parcelas
       WHERE id_pagamento IN (
-        SELECT id FROM pagamentos WHERE id_usuario = $1
+        SELECT p.id FROM pagamentos p
+        JOIN vendas v ON p.id_venda = v.id
+        WHERE v.id_usuario = $1
       )
     `, [id]);
 
     // =========================
-    // 3. PAGAMENTOS
+    // 3. PAGAMENTOS (via vendas)
     // =========================
-    await client.query("DELETE FROM pagamentos WHERE id_usuario = $1", [id]);
+    await client.query(`
+      DELETE FROM pagamentos
+      WHERE id_venda IN (
+        SELECT id FROM vendas WHERE id_usuario = $1
+      )
+    `, [id]);
 
     // =========================
     // 4. VENDAS
@@ -62,7 +66,7 @@ export const deletar = async (req, res) => {
     await client.query("DELETE FROM produtos WHERE id_usuario = $1", [id]);
 
     // =========================
-    // 6. USUÁRIO
+    // 6. USUARIO
     // =========================
     await client.query("DELETE FROM usuarios WHERE id = $1", [id]);
 
@@ -73,14 +77,12 @@ export const deletar = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
 
-    console.error("🔥 ERRO AO DELETAR USUÁRIO:");
-    console.error(err);
+    console.error("ERRO REAL:", err);
 
     return res.status(500).json({
       erro: err.message,
-      detalhe: err.detail || null,
-      tabela: err.table || null,
-      constraint: err.constraint || null
+      tabela: err.table,
+      constraint: err.constraint
     });
 
   } finally {
