@@ -96,6 +96,13 @@ export default function PaginaVendas() {
     return venda.itens.reduce((acc, i) => acc + i.preco * i.quantidade, 0);
   };
 
+  const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
+
+  const vendasPagina = vendas.slice(
+    (paginaAtual - 1) * vendasPorPagina,
+    paginaAtual * vendasPorPagina
+  );
+  
   return (
     <DashboardLayout>
       <div className="container mt-4">
