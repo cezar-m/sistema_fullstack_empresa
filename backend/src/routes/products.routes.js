@@ -16,6 +16,6 @@ router.put("/:id", auth, upload.single("imagem"), validateProduct, controller.at
 router.delete("/:id", auth, controller.deletar);
 
 // Lista produtos do usuário logado
-router.get("/", auth, controller.listar);
+router.get("/meus", auth, controller.listar);
 
 export default router;
