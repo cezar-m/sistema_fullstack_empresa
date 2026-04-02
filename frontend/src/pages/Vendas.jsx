@@ -188,8 +188,8 @@ export default function PaginaVendas() {
                           };
                         }
                 
-                        acc[nome].quantidade += Number(i.quantidade);
-                        acc[nome].valor += Number(i.quantidade) * Number(i.preco);
+                        acc[nome].quantidade += Number(i.quantidade || 0);
+                        acc[nome].valor += Number(i.quantidade || 0) * Number(i.preco || i.valor || 0);;
                       });
                 
                       return acc;
