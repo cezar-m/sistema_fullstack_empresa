@@ -27,7 +27,7 @@ export default function PaginaVendas() {
 
   const listarProdutos = async () => {
     try {
-      const res = await api.get("/products/listar");
+      const res = await api.get("/products/meus");
       setProdutos(Array.isArray(res.data) ? res.data : []);
     } catch {
       setMensagem("Erro ao carregar produtos");
