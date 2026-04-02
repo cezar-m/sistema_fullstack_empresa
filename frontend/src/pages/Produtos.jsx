@@ -165,7 +165,7 @@ export default function Produtos() {
   // Editar produto
   const editar = (p) => {
     setNome(p.nome);
-    setCategoria(p.id_categoria || "");
+    setCategoria(p.categoria_id || "");
     setQuantidade(p.quantidade ?? "");
     setPreview(p.imagem ? `${API_URL}/uploads/${p.imagem}` : null);
     setImagem(null);
