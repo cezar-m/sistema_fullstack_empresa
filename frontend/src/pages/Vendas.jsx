@@ -177,7 +177,7 @@ export default function PaginaVendas() {
                 <tbody>
                   {Object.values(
                     vendas.reduce((acc, venda) => {
-                      venda.itens.forEach(i => {
+                      (venda.itens || []).forEach(i => {
                         const nome = i.produto;
                 
                         if (!acc[nome]) {
@@ -188,8 +188,11 @@ export default function PaginaVendas() {
                           };
                         }
                 
-                        acc[nome].quantidade += Number(i.quantidade || 0);
-                        acc[nome].valor += Number(i.quantidade || 0) * Number(i.preco || i.valor || 0);;
+                        const preco = Number(i.preco ?? i.valor ?? 0);
+                        const qtd = Number(i.quantidade ?? 0);
+                
+                        acc[nome].quantidade += qtd;
+                        acc[nome].valor += preco * qtd;
                       });
                 
                       return acc;
@@ -199,11 +202,11 @@ export default function PaginaVendas() {
                       <td>{item.produto}</td>
                       <td>{item.quantidade}</td>
                       <td className="fw-bold text-success">
-                        R$ {item.valor.toFixed(2)}
+                        R$ {(Number(item.valor || 0)).toFixed(2)}
                       </td>
                     </tr>
                   ))}
-              </tbody>
+                </tbody>
             </table>
           </div>
         </div>
