@@ -154,8 +154,12 @@ export const listar = async (req, res) => {
         p.nome,
         p.imagem,
         p.preco,
-        COALESCE(e.quantidade,0) AS quantidade,
-        COALESCE(c.nome,'Sem categoria') AS categoria
+
+        p.id_categoria,
+        COALESCE(c.nome, 'Sem categoria') AS categoria_nome,
+
+        COALESCE(e.quantidade, 0) AS quantidade
+
       FROM produtos p
       LEFT JOIN categorias c ON p.id_categoria = c.id
       LEFT JOIN estoque e 
@@ -166,8 +170,13 @@ export const listar = async (req, res) => {
     `, [userId]);
 
     const produtos = result.rows.map(p => ({
-      ...p,
-      preco: Number(p.preco) || 0
+      id: p.id,
+      nome: p.nome,
+      imagem: p.imagem,
+      preco: Number(p.preco) || 0,
+      id_categoria: p.id_categoria,
+      categoria: p.categoria_nome,
+      quantidade: Number(p.quantidade) || 0
     }));
 
     return res.json(produtos);
