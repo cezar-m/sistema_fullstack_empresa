@@ -5,7 +5,7 @@ export const listar = async(req, res) => {
 	res.json(result.rows);
 };
 
-export const deletarVenda = async (req, res) => {
+export const deletar = async (req, res) => {
   try {
     const { id } = req.params;
 
