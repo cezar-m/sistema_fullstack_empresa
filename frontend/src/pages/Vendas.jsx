@@ -177,9 +177,9 @@ export default function PaginaVendas() {
                 <tbody>
                   {Object.values(
                     vendas.reduce((acc, venda) => {
-                      (venda.itens || []).forEach(i => {
+                     (venda.itens || []).forEach(i => {
                         const nome = i.produto;
-                
+                      
                         if (!acc[nome]) {
                           acc[nome] = {
                             produto: nome,
@@ -187,10 +187,12 @@ export default function PaginaVendas() {
                             valor: 0
                           };
                         }
-                
-                        const preco = Number(i.preco ?? i.valor ?? 0);
+                      
+                        const produtoOriginal = produtos.find(p => p.nome === nome);
+                      
+                        const preco = Number(produtoOriginal?.preco ?? 0);
                         const qtd = Number(i.quantidade ?? 0);
-                
+                      
                         acc[nome].quantidade += qtd;
                         acc[nome].valor += preco * qtd;
                       });
