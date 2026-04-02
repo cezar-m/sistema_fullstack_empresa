@@ -80,11 +80,7 @@ export default function Produtos() {
   // Carrega produtos do usuário
   const carregarProdutos = async () => {
     try {
-     const res = await api.get("/products", {
-        headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`
-      }
-    });
+     const res = await api.get("/products/meus")
       const lista = Array.isArray(res.data) ? res.data : [];
       const produtosComPreco = lista.map((p) => ({
         ...p,
