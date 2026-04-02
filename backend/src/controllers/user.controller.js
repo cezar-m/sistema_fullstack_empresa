@@ -5,51 +5,43 @@ export const listar = async(req, res) => {
 	res.json(result.rows);
 };
 
-export const deletar = async (req, res) => {
+export const deletarVenda = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. apaga estoque ligado ao usuário
+    // 1. parcelas ligadas aos pagamentos dessa venda
+    await db.query(`
+      DELETE FROM parcelas
+      WHERE id_pagamento IN (
+        SELECT id FROM pagamentos WHERE id_venda = $1
+      )
+    `, [id]);
+
+    // 2. pagamentos da venda
     await db.query(
-      "DELETE FROM estoque WHERE id_usuario = $1",
+      "DELETE FROM pagamentos WHERE id_venda = $1",
       [id]
     );
 
-    // 2. apaga vendas (se existir no seu sistema)
+    // 3. itens da venda
     await db.query(
-      "DELETE FROM vendas WHERE id_usuario = $1",
+      "DELETE FROM itens_venda WHERE id_venda = $1",
       [id]
     );
 
-    // 3. apaga produtos do usuário
+    // 4. venda principal
     await db.query(
-      "DELETE FROM produtos WHERE id_usuario = $1",
+      "DELETE FROM vendas WHERE id = $1",
       [id]
     );
 
-    // 4. apaga pagamentos (se existir)
-    await db.query(
-      "DELETE FROM pagamentos WHERE id_usuario = $1",
-      [id]
-    );
-
-    // 5. por último apaga o usuário
-    const result = await db.query(
-      "DELETE FROM usuarios WHERE id = $1",
-      [id]
-    );
-
-    return res.json({
-      msg: "Usuário e dependências excluídos com sucesso!"
-    });
+    return res.json({ msg: "Venda deletada com sucesso!" });
 
   } catch (err) {
-    console.error("ERRO AO DELETAR USUÁRIO:", err);
+    console.error("ERRO DELETE VENDA:", err);
 
     return res.status(500).json({
-      erro: "Erro ao excluir usuário",
-      detalhe: err.message
+      erro: err.message
     });
   }
 };
-
