@@ -165,7 +165,7 @@ export default function Produtos() {
   // Editar produto
   const editar = (p) => {
     setNome(p.nome);
-    setCategoria(p.categoria_id || "");
+    setCategoria(p.id_categoria || "");
     setQuantidade(p.quantidade ?? "");
     setPreview(p.imagem ? `${API_URL}/uploads/${p.imagem}` : null);
     setImagem(null);
@@ -275,7 +275,7 @@ export default function Produtos() {
           <select
             className="form-control mb-2"
             value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
+            onChange={(e) => setCategoria(Number(e.target.value))}
           >
             <option value="">Selecione categoria</option>
             {categorias.map((c) => (
