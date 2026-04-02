@@ -105,34 +105,30 @@ export const atualizar = async (req, res) => {
 ========================= */
 export const listar = async (req, res) => {
   try {
+    const userId = req.user.id;
+
     const result = await db.query(`
       SELECT
         p.id,
         p.nome,
         p.imagem,
         p.preco,
-        p.id_categoria,
         COALESCE(e.quantidade,0) AS quantidade,
-        COALESCE(c.nome,'Sem categoria') AS categoria,
-        u.nome AS usuario
+        COALESCE(c.nome,'Sem categoria') AS categoria
       FROM produtos p
       LEFT JOIN categorias c ON p.id_categoria = c.id
-      LEFT JOIN usuarios u ON p.id_usuario = u.id
       LEFT JOIN estoque e ON p.id = e.id_produto
+      WHERE p.id_usuario = $1
       ORDER BY p.nome ASC
-    `);
+    `, [userId]);
 
-    const produtos = result.rows.map(p => ({
-      ...p,
-      preco: Number(p.preco),
-    }));
-
-    res.json(produtos);
+    res.json(result.rows);
   } catch (err) {
-    console.error("Erro ao listar produtos:", err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao listar produtos" });
   }
 };
+
 
 /* =========================
    LISTAR PRODUTOS USUÁRIO
