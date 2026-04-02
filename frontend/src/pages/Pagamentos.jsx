@@ -35,7 +35,7 @@ export default function Pagamentos() {
   const carregar = async () => {
     try {
       const [p, f, pg, v] = await Promise.all([
-        api.get("/products/listar"),
+        api.get("/products/meus"),
         api.get("/formas-pagamento"),
         api.get("/pagamentos"),
         api.get("/vendas")
