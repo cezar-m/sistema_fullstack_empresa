@@ -39,7 +39,8 @@ export const deletar = async (req, res) => {
     await client.query(`
       DELETE FROM parcelas
       WHERE id_pagamento IN (
-        SELECT p.id FROM pagamentos p
+        SELECT p.id
+        FROM pagamentos p
         JOIN vendas v ON p.id_venda = v.id
         WHERE v.id_usuario = $1
       )
@@ -58,17 +59,23 @@ export const deletar = async (req, res) => {
     // =========================
     // 4. VENDAS
     // =========================
-    await client.query("DELETE FROM vendas WHERE id_usuario = $1", [id]);
+    await client.query(`
+      DELETE FROM vendas WHERE id_usuario = $1
+    `, [id]);
 
     // =========================
     // 5. PRODUTOS
     // =========================
-    await client.query("DELETE FROM produtos WHERE id_usuario = $1", [id]);
+    await client.query(`
+      DELETE FROM produtos WHERE id_usuario = $1
+    `, [id]);
 
     // =========================
     // 6. USUARIO
     // =========================
-    await client.query("DELETE FROM usuarios WHERE id = $1", [id]);
+    await client.query(`
+      DELETE FROM usuarios WHERE id = $1
+    `, [id]);
 
     await client.query("COMMIT");
 
