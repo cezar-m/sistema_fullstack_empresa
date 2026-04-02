@@ -25,7 +25,9 @@ export default function Estoque() {
 			const res = await api.get("/estoque", {
 				headers: { Authorization: `Bearer ${token}` },
 			});
-			setEstoque(res.data);
+
+			// 🔥 PROTEÇÃO PRA NÃO QUEBRAR
+			setEstoque(Array.isArray(res.data) ? res.data : []);
 		} catch (err) {
 			console.error(err);
 			setEstoque([]);
@@ -67,7 +69,7 @@ export default function Estoque() {
 
 		try {
 			const res = await api.put(
-				`/estoque/${idProduto}`, // 🔥 CORRETO
+				`/estoque/${idProduto}`,
 				{ quantidade },
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
@@ -84,7 +86,7 @@ export default function Estoque() {
 	const deletarEstoque = async (id) => {
 		try {
 			const res = await api.delete(
-				`/estoque/${id}`, // 🔥 CORRETO
+				`/estoque/${id}`,
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
 
@@ -105,8 +107,10 @@ export default function Estoque() {
 	// Paginação
 	const indexUltimoItem = paginaAtual * itensPorPagina;
 	const indexPrimeiroItem = indexUltimoItem - itensPorPagina;
-	const estoquePagina = estoque.slice(indexPrimeiroItem, indexUltimoItem);
-	const totalPaginas = Math.ceil(estoque.length / itensPorPagina);
+
+	const estoquePagina = (estoque || []).slice(indexPrimeiroItem, indexUltimoItem);
+
+	const totalPaginas = Math.ceil((estoque || []).length / itensPorPagina);
 
 	const mudarPagina = (num) => setPaginaAtual(num);
 
@@ -175,22 +179,22 @@ export default function Estoque() {
 							<tbody>
 								{estoquePagina.map((item) => (
 									<tr
-										key={item.id_produto}
+										key={item.id_produto || item.id}
 										onClick={() => {
-											setIdProduto(item.id_produto);
-											setNomeProduto(item.produto);
+											setIdProduto(item.id_produto || item.id);
+											setNomeProduto(item.nome_produto || item.produto || "");
 											setQuantidade(item.quantidade);
 										}}
 										style={{ cursor: "pointer" }}
 									>
-										<td>{item.produto}</td>
+										<td>{item.nome_produto || item.produto}</td>
 										<td>{item.quantidade}</td>
 										<td>
 											<button
 												className="btn btn-danger btn-sm"
 												onClick={(e) => {
 													e.stopPropagation();
-													deletarEstoque(item.id_produto);
+													deletarEstoque(item.id_produto || item.id);
 												}}
 											>
 												Deletar
