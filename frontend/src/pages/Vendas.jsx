@@ -96,23 +96,6 @@ export default function PaginaVendas() {
     return venda.itens.reduce((acc, i) => acc + i.preco * i.quantidade, 0);
   };
 
-  const totalPorProduto = () => {
-    const total = {};
-    vendas.forEach(venda => {
-      venda.itens.forEach(i => {
-        total[i.produto] = (total[i.produto] || 0) + i.quantidade;
-      });
-    });
-    return Object.entries(total).map(([produto, quantidade]) => ({ produto, quantidade }));
-  };
-
-  const totalPaginas = Math.ceil(vendas.length / vendasPorPagina);
-  const vendasPagina = vendas.slice((paginaAtual - 1) * vendasPorPagina, paginaAtual * vendasPorPagina);
-
-  const totalGeral = () => {
-    return vendas.reduce((acc, v) => acc + Number(v.total || 0), 0);
-  };
-
   return (
     <DashboardLayout>
       <div className="container mt-4">
@@ -177,14 +160,42 @@ export default function PaginaVendas() {
           <div className="card-header bg-info text-white fw-bold">Total Vendido por Produto</div>
           <div className="card-body">
             <table className="table table-bordered">
-              <thead><tr><th>Produto</th><th>Quantidade</th></tr></thead>
-              <tbody>
-                  {totalPorProduto().map((i, idx) => <tr key={idx}><td>{i.produto}</td><td>{i.quantidade}</td></tr>)}
-                  <div className="text-end mt-3">
-                    <h5 className="fw-bold text-success">
-                      Total Geral: R$ {totalGeral().toFixed(2)}
-                    </h5>
-                  </div>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Quantidade</th>
+                  <th>Valor Total</th>
+                </tr>
+                </thead>
+                <tbody>
+                  {Object.values(
+                    vendas.reduce((acc, venda) => {
+                      venda.itens.forEach(i => {
+                        const nome = i.produto;
+                
+                        if (!acc[nome]) {
+                          acc[nome] = {
+                            produto: nome,
+                            quantidade: 0,
+                            valor: 0
+                          };
+                        }
+                
+                        acc[nome].quantidade += Number(i.quantidade);
+                        acc[nome].valor += Number(i.quantidade) * Number(i.preco);
+                      });
+                
+                      return acc;
+                    }, {})
+                  ).map((item, idx) => (
+                    <tr key={idx}>
+                      <td>{item.produto}</td>
+                      <td>{item.quantidade}</td>
+                      <td className="fw-bold text-success">
+                        R$ {item.valor.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
