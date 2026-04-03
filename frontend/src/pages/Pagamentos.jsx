@@ -276,7 +276,7 @@ export default function Pagamentos() {
               <tr>
                 <th></th>
                 <th>Produtos</th>
-                <th>Qtd</th>
+                <th>Quantidade</th>
                 <th>Total</th>
               </tr>
             </thead>
