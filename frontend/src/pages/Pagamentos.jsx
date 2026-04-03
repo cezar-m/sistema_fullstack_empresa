@@ -429,15 +429,15 @@ export default function Pagamentos() {
                   <option value="pago">Pago</option>
                 </select>
 
-                <button className="btn btn-success mt-2"
-                  onClick={salvarEdicao}>
-                  Salvar
-                </button>
-
-                <button className="btn btn-secondary mt-2"
-                  onClick={() => setEditarPagamento(null)}>
-                  Cancelar
-                </button>
+                 <div className="d-flex justify-content-center gap-2 mt-2">
+                    <button className="btn btn-success" onClick={salvarEdicao}>
+                      Salvar
+                    </button>
+                  
+                    <button className="btn btn-secondary" onClick={() => setEditarPagamento(null)}>
+                      Cancelar
+                    </button>
+                </div>
 
               </div>
             </div>
