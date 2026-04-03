@@ -395,11 +395,20 @@ export default function Pagamentos() {
               </tbody>
             </table>
             
-            <button
-              className="btn btn-secondary"
-              onClick={() => setParcelasSelecionadas([])}>
-              Fechar
-            </button>
+           <div className="d-flex justify-content-center mt-3">
+              <button
+                className="btn btn-secondary btn-sm px-4 py-2 shadow-sm"
+                style={{
+                  borderRadius: "10px",
+                  fontWeight: "500",
+                  minWidth: "150px"
+                }}
+                onClick={() => setParcelasSelecionadas([])}
+              >
+                Fechar
+              </button>
+          </div>
+
           </div>
         )}
 
