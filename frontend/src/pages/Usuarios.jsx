@@ -13,6 +13,16 @@ export default function Usuarios() {
 	useEffect(() => {
 		listarUsuarios();
 	}, []);
+
+	useEffect(() => {
+	  if (mensagem) {
+	    const timer = setTimeout(() => {
+	      setMensagem("");
+	    }, 3000);
+	
+	    return () => clearTimeout(timer);
+	  }
+	}, [mensagem]);
 	
 	const listarUsuarios = async () => {
 		try {
