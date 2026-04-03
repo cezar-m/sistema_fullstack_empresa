@@ -17,7 +17,7 @@ export const deletar = async (req, res) => {
     await client.query("BEGIN");
 
     // =========================
-    // 1. ITENS_VENDA
+    // 1. ITENS_VENDA (por venda)
     // =========================
     await client.query(`
       DELETE FROM itens_venda 
@@ -26,6 +26,9 @@ export const deletar = async (req, res) => {
       )
     `, [id]);
 
+    // =========================
+    // 2. ITENS_VENDA (por produto)
+    // =========================
     await client.query(`
       DELETE FROM itens_venda 
       WHERE id_produto IN (
@@ -34,7 +37,7 @@ export const deletar = async (req, res) => {
     `, [id]);
 
     // =========================
-    // 2. PARCELAS (via pagamentos)
+    // 3. PARCELAS
     // =========================
     await client.query(`
       DELETE FROM parcelas
@@ -47,7 +50,7 @@ export const deletar = async (req, res) => {
     `, [id]);
 
     // =========================
-    // 3. PAGAMENTOS (via vendas)
+    // 4. PAGAMENTOS
     // =========================
     await client.query(`
       DELETE FROM pagamentos
@@ -57,21 +60,31 @@ export const deletar = async (req, res) => {
     `, [id]);
 
     // =========================
-    // 4. VENDAS
+    // 5. VENDAS
     // =========================
     await client.query(`
       DELETE FROM vendas WHERE id_usuario = $1
     `, [id]);
 
     // =========================
-    // 5. PRODUTOS
+    // 6. ESTOQUE (🔥 ESSENCIAL)
+    // =========================
+    await client.query(`
+      DELETE FROM estoque
+      WHERE id_produto IN (
+        SELECT id FROM produtos WHERE id_usuario = $1
+      )
+    `, [id]);
+
+    // =========================
+    // 7. PRODUTOS
     // =========================
     await client.query(`
       DELETE FROM produtos WHERE id_usuario = $1
     `, [id]);
 
     // =========================
-    // 6. USUARIO
+    // 8. USUARIO
     // =========================
     await client.query(`
       DELETE FROM usuarios WHERE id = $1
