@@ -464,14 +464,14 @@ export default function Pagamentos() {
                   <div className="d-flex justify-content-center gap-2 mt-2">
                     <button
                       className="btn btn-success"
-                      onClick={salvarEdicao}
+                      onClick={salvarParcela}
                     >
                       Salvar
                     </button>
                   
                     <button
                       className="btn btn-secondary"
-                      onClick={() => setEditarPagamento(null)}
+                      onClick={() => setEditarParcela(null)}
                     >
                       Cancelar
                     </button>
