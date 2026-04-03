@@ -300,14 +300,21 @@ export default function Pagamentos() {
             </tbody>
           </table>
 
-          <button
-            className="btn btn-primary mt-2"
-            disabled={loading || !selecionadas.length}
-            onClick={pagarSelecionadas}
-          >
-            {loading ? "Processando..." : "Pagar selecionadas"}
-          </button>
-
+            <div className="d-flex justify-content-center mt-4">
+              <button
+                className="btn btn-primary btn-sm px-4 py-2 shadow-sm"
+                style={{
+                  borderRadius: "10px",
+                  fontWeight: "500",
+                  minWidth: "200px"
+                }}
+                disabled={loading || !selecionadas.length}
+                onClick={pagarSelecionadas}
+              >
+                {loading ? "Processando..." : "Pagar selecionadas"}
+              </button>
+            </div>
+          
         </div>
 
         <h3>Pagamentos</h3>
