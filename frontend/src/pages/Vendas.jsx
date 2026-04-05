@@ -115,7 +115,7 @@ export default function PaginaVendas() {
                 <label>Produto:</label>
                 <select className="form-select" value={produtoSelecionado} onChange={e => setProdutoSelecionado(e.target.value)}>
                   <option value="">Selecione</option>
-                  {produtos.map(p => <option key={p.id} value={p.id} disabled={p.quantidade <= 0}>{p.nome} - R$ {Number(p.preco).toFixed(2)} (Estoque: {p.quantidade})</option>)}
+                  {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
               </div>
               <div className="col-md-3">
